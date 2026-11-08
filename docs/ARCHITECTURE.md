@@ -3,21 +3,41 @@
 ## Layers
 
 ```
-Front ends:  TUI (Textual)   Web GUI (assistant-ui)   External apps
-                  |                 |                  (Jan, ...)
-                  |                 | native API           | OpenAI
-                  |                 v                      v
-                  |          muselinux.server        muselinux.shim
-                  |                 |                      |
-                  +--------+--------+--------+-------------+
-                           |        |        |
-                     ask / history / voice / approvals / index
-                           |
-                    musegadget LinkSession
-                 (ephemeral, register_device=False)
-                           |
-                 Noise session to the Muse VM
+Desktop:  GNOME client (GTK4/libadwaita)    KDE client (next)
+                     \                        /
+                      muselinux.client: Unix socket, JSON lines
+                                  |
+              muse-linux daemon (root, systemd): one long-lived
+              session, a subscription per watched chat
+                                  |
+Others:   TUI (Textual)   Web GUI (assistant-ui)   External apps
+              |                 | native API         | OpenAI
+              |                 v                    v
+              |          muselinux.server      muselinux.shim
+              |                 |                    |
+              +--------+--------+---------+----------+
+                       |   (per-turn sessions; the daemon's one
+                       |    session for desktop clients)
+                 link / ask / history / voice / approvals / index
+                       |
+                musegadget LinkSession
+             (ephemeral, register_device=False)
+                       |
+             Noise session to the Muse VM
 ```
+
+- `muselinux.daemon` is the desktop's credential owner: it reads the
+  root-only pairing, holds one session with reconnect and backoff,
+  subscribes to watched chats and serves clients over a
+  group-restricted Unix socket. See [DAEMON.md](DAEMON.md).
+- `muselinux.protocol` defines the socket protocol
+  ([PROTOCOL.md](PROTOCOL.md)) and turns raw chat events into typed
+  ones; `muselinux.client` is the toolkit-agnostic client.
+- `muselinux.gnome` is the GNOME client: `model` (per-chat state, no
+  GTK), `markdown` (Markdown to escaped Pango markup, no GTK) and
+  `app` (the widgets).
+- `muselinux.testing` is an in-memory Muse for tests and the demo
+  daemon.
 
 - `muselinux.link` owns connections: pairing-store loading, VM lookup,
   and the ephemeral-session context manager.
@@ -34,7 +54,9 @@ Front ends:  TUI (Textual)   Web GUI (assistant-ui)   External apps
 - `muselinux.index` is the local chat index (JSON; the service home
   `/var/lib/muse-linux/` when an installed service index exists,
   else `~/.local/share/muse-linux/`). It exists because the server
-  offers this credential no enumeration route.
+  offers this credential no enumeration route. Every change locks,
+  re-reads and atomically rewrites the file, so the daemon, the web
+  service and the terminal tools can share it.
 - `muselinux.voice` sends WAV voice notes (requesting voice
   modality, which is what makes replies speakable) and collects
   TTS MP3 for an assistant message.
@@ -66,7 +88,11 @@ disturbing the gadget.
 ## Security posture
 
 - Pairing material is read from the SDK's own store, in process, and
-  never printed, logged or written anywhere by this project.
+  never printed, logged or written anywhere by this project. On a
+  desktop only the daemon reads it; the clients hold no credential.
+- The daemon's socket is usable by root and the `muse-linux` group
+  only, and the daemon runs without capabilities under systemd
+  sandboxing (see [DAEMON.md](DAEMON.md)).
 - The shim and the GUI server bind to localhost by default. They have
   no authentication of their own because the trust boundary is the
   machine; do not expose them on a network without putting an

@@ -285,6 +285,10 @@ async def test_client_reconnects_after_a_daemon_restart(tmp_path):
                           on_link=lambda up, why: links.append(up)).start()
     with pytest.raises(DaemonUnavailable):
         await call(client, "hello")
+    for _ in range(200):
+        if client.last_problem:
+            break
+        await asyncio.sleep(0.01)
     assert "not running" in (client.last_problem or "")
 
     async def run_daemon():

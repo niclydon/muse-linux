@@ -14,3 +14,6 @@ sdk_token
 gui/node_modules/
 gui/dist/
 gui/src-tauri/target/
+
+# smoke test scratch output
+.smoke-out/

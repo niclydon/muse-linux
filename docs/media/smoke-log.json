@@ -1,0 +1,53 @@
+{
+  "chat_label": "Smoke test",
+  "steps": [
+    {
+      "t": 8.7,
+      "step": "gnome shell up"
+    },
+    {
+      "t": 12.0,
+      "step": "client open"
+    },
+    {
+      "t": 23.0,
+      "step": "message 1 sent"
+    },
+    {
+      "t": 38.0,
+      "step": "reply 1 done",
+      "chars": 20
+    },
+    {
+      "t": 49.0,
+      "step": "message 2 sent"
+    },
+    {
+      "t": 56.0,
+      "step": "reply 2 done",
+      "chars": 20
+    },
+    {
+      "t": 63.0,
+      "step": "renamed"
+    },
+    {
+      "t": 67.2,
+      "step": "history reloaded"
+    },
+    {
+      "t": 72.3,
+      "step": "status dialog"
+    },
+    {
+      "t": 73.1,
+      "step": "history check",
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant"
+      ]
+    }
+  ]
+}
