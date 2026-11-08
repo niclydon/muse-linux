@@ -133,8 +133,15 @@ def test_cross_site_requests_without_an_origin_are_refused(api):
                         headers={"Sec-Fetch-Site": "cross-site",
                                  "Sec-Fetch-Mode": "no-cors"})
     assert status == 403
+    # a foreign page framing the GUI navigates too, but into a frame
+    status, _, _ = _req(api, "GET", "/api/chats",
+                        headers={"Sec-Fetch-Site": "cross-site",
+                                 "Sec-Fetch-Mode": "navigate",
+                                 "Sec-Fetch-Dest": "iframe"})
+    assert status == 403
     # the user following a link, or typing the address, is fine
-    for headers in ({"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate"},
+    for headers in ({"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
+                     "Sec-Fetch-Dest": "document"},
                     {"Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate"},
                     {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"}):
         assert _req(api, "GET", "/api/chats", headers=headers)[0] == 200
@@ -183,3 +190,9 @@ def test_shim_reads_allowed_hosts_from_the_environment(tmp_path, monkeypatch):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_request_host_headers_are_not_read_as_urls(monkeypatch):
+    monkeypatch.delenv(localguard.ALLOWED_HOSTS_ENV, raising=False)
+    hosts = localguard.allowed_hosts("127.0.0.1")
+    assert not localguard.host_allowed("x://127.0.0.1", hosts)

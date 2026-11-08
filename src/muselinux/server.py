@@ -364,6 +364,9 @@ def make_handler(index: ChatIndex, gui_dir=None, bound_host="127.0.0.1",
                 mimetypes.guess_type(target.name)[0]
                 or "application/octet-stream")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Content-Security-Policy",
+                             "frame-ancestors 'none'")
             self.end_headers()
             self.wfile.write(body)
             return True

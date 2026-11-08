@@ -35,14 +35,20 @@ DESKTOP_ORIGINS = {"tauri://localhost", "http://tauri.localhost",
 
 def _split_host(value: str) -> str:
     value = (value or "").strip().lower()
-    if "://" in value:                     # a URL was given as a host
-        value = value.split("://", 1)[1]
-    value = value.split("/", 1)[0]
     if value.startswith("["):              # [::1]:8770
         return value[1:value.find("]")] if "]" in value else value
     if value.count(":") == 1:              # host:port
         return value.split(":", 1)[0]
     return value
+
+
+def _strip_url(value: str) -> str:
+    """Configured host names may be written as URLs; keep the host part.
+    Only for configuration, never for request headers."""
+    value = value.strip()
+    if "://" in value:
+        value = value.split("://", 1)[1]
+    return value.split("/", 1)[0]
 
 
 def is_loopback(host: str) -> bool:
@@ -65,13 +71,13 @@ def allowed_hosts(bound_host: str = "", extra=()) -> set[str]:
     such as tailscale serve that forwards its own host name)."""
     import os
 
-    hosts = {_split_host(h) for h in extra if h}
+    hosts = {_split_host(_strip_url(h)) for h in extra if h}
     bound = _split_host(bound_host)
     if bound and bound not in ("0.0.0.0", "::"):
         hosts.add(bound)
     for item in os.environ.get(ALLOWED_HOSTS_ENV, "").split(","):
         if item.strip():
-            hosts.add(_split_host(item))
+            hosts.add(_split_host(_strip_url(item)))
     return hosts
 
 
@@ -109,9 +115,12 @@ def refusal(headers, hosts: set[str]) -> str | None:
         return "origin not allowed"
     site = (headers.get("Sec-Fetch-Site") or "").strip().lower()
     mode = (headers.get("Sec-Fetch-Mode") or "").strip().lower()
-    # following a link to the GUI is fine; a page's own fetch, image or
-    # script request is not
-    if not origin and site in FOREIGN_FETCH_SITES and mode != "navigate":
+    dest = (headers.get("Sec-Fetch-Dest") or "").strip().lower()
+    # the user following a link to the GUI is fine; a page's own fetch,
+    # image, script or frame is not (frames navigate too, so check the
+    # destination)
+    top_level = mode == "navigate" and dest in ("document", "")
+    if not origin and site in FOREIGN_FETCH_SITES and not top_level:
         return "cross-site request not allowed"
     return None
 

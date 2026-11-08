@@ -73,11 +73,13 @@ for key, conf in web.items():
 for name in sorted(public):
     print("warning: " + name + " is on Tailscale Funnel (the public "
           "internet); not allowing it", file=sys.stderr)
+# a name on Funnel for any port is public, even if another port is not
+names -= public
 print(",".join(sorted(names)))
 ' "$PORT" || true)"
     if [[ -z "$HOSTS" ]]; then
-      echo "note: no tailscale serve entry proxies port $PORT; if you put the"
-      echo "      API behind one later, add its name to /etc/default/muse-linux"
+      echo "note: no private tailscale serve name was found for port $PORT; to"
+      echo "      allow a proxy name later, add it to /etc/default/muse-linux"
       echo "      as MUSE_LINUX_ALLOWED_HOSTS=<name>"
     fi
   fi
