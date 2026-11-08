@@ -316,3 +316,14 @@ async def test_client_reconnects_after_a_daemon_restart(tmp_path):
         stop.set()
         await asyncio.wait_for(task, 5)
     await asyncio.to_thread(client.close)
+
+
+def test_live_replies_drop_muse_app_widget_tokens():
+    from muselinux.protocol import ChatTranslator
+
+    translator = ChatTranslator("main")
+    events = translator.feed({"type": "event", "event": "message.assistant",
+                              "payload": {"message_id": "r1",
+                                          "display_text": "Here is the plan.\n\n"
+                                          "[[hatch_widget:widget-1]]\n"}})
+    assert events[0]["text"] == "Here is the plan."

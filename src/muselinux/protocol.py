@@ -99,6 +99,15 @@ def clean_text(value, limit: int = MAX_REPLY_CHARS) -> str:
     return _CONTROLS.sub("", value)[:limit]
 
 
+def display_text(value, limit: int = MAX_REPLY_CHARS) -> str:
+    """Message text as shown: control characters removed, and the Muse
+    app's widget embed tokens, which only render inside that app,
+    stripped the same way history does."""
+    from .history import clean_display_text
+
+    return clean_display_text(clean_text(value, limit))
+
+
 def clean_label(value, default: str) -> str:
     text = clean_text(value, MAX_LABEL_CHARS).replace("\n", " ").strip()
     return text or default
@@ -179,7 +188,7 @@ class ChatTranslator:
                 or payload.get("content")
             return [{"event": "user_message", "chat": chat,
                      "message_id": message_id,
-                     "text": clean_text(text, MAX_TEXT_CHARS),
+                     "text": display_text(text, MAX_TEXT_CHARS),
                      "occurred_at_ms": at}]
         if name not in ("delta.message_start", "delta.text_append",
                         "delta.message_done", "message.assistant"):
@@ -205,5 +214,5 @@ class ChatTranslator:
                 (reply["text"], reply["done"]) == before:
             return []
         return [{"event": "reply", "chat": chat, "message_id": message_id,
-                 "text": reply["text"], "done": reply["done"],
+                 "text": display_text(reply["text"]), "done": reply["done"],
                  "occurred_at_ms": at}]

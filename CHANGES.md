@@ -24,6 +24,8 @@
   web service and the terminal tools sharing it no longer drop each
   other's chats; a damaged index is never overwritten; `remove` and
   last-activity ordering added.
+- Live events through the daemon drop Muse-app widget embed tokens,
+  like history does since 0.2.1.
 - Fixed: the web API's rename route returned a server error.
 - `tools/demo_daemon.py` (the real daemon against made-up chats) and
   `tools/smoke_gnome.py` (recorded end-to-end GNOME smoke test). The
