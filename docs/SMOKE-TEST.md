@@ -56,12 +56,16 @@ Run on the same paired host (Ubuntu 24.04, x86_64, Python 3.12, GTK
 4.14, libadwaita 1.5) against the production Muse service, in a
 throwaway headless GNOME Shell 46 session (X11 on Xvfb), driven by
 `tools/smoke_gnome.py` and recorded with ffmpeg. The daemon ran as a
-transient root service with a scratch chat index, so only the main
+transient root service under the same sandbox as
+`deploy/muse-linuxd.service` (no home directories, `/var/lib` reduced
+to the pairing store and its state, system call filter), with an
+older Muse Gadget SDK whose chat subscription has no `opened` hook,
+and with a scratch chat index, so only the main
 chat's entry and the smoke test's own chats were in the list, and the
 client opened straight into a new side chat. The main chat was never
 opened. The two messages and their replies are fixed test text.
 
-Recording: [media/smoke-test.mp4](media/smoke-test.mp4) (66 s).
+Recording: [media/smoke-test.mp4](media/smoke-test.mp4) (67 s).
 Step timings: [media/smoke-log.json](media/smoke-log.json).
 
 | Step | Result | Screenshot |
