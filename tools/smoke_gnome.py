@@ -94,6 +94,12 @@ class Session:
             time.sleep(0.1)
         self.env["DBUS_SESSION_BUS_ADDRESS"] = bus_file.read_text().strip()
         time.sleep(6)
+        # Under load, Xvfb key repeat turns xdotool's key presses into
+        # doubled letters; switch repeat off in this throwaway session's
+        # own settings (XDG_CONFIG_HOME points into the work directory).
+        self.run("gsettings", "set", "org.gnome.desktop.peripherals.keyboard",
+                 "repeat", "false")
+        self.run("xset", "r", "off")
         self.key("Escape")      # leave the overview the shell starts in
         time.sleep(1)
 
@@ -105,7 +111,7 @@ class Session:
         self.run("xdotool", "key", "--clearmodifiers", *keys)
 
     def type(self, text):
-        self.run("xdotool", "type", "--delay", "18", text)
+        self.run("xdotool", "type", "--delay", "35", text)
 
     def screenshot(self, path: Path, window=None):
         # the whole screen, so the GNOME Shell top bar is in the picture
@@ -222,8 +228,6 @@ def main() -> int:
             stderr=subprocess.STDOUT)
         win = session.find_window("Muse for Linux")
         session.run("xdotool", "windowactivate", "--sync", win)
-        time.sleep(1)
-        session.key("super+Up")     # maximize, like a normal desktop
         time.sleep(3)
         note("client open")
         session.screenshot(out / "01-new-side-chat.png", win)

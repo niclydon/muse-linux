@@ -460,7 +460,12 @@ class ChatView(Adw.Bin):
         working = s.working
         self.status_revealer.set_reveal_child(working)
         self.status_spinner.set_spinning(working)
-        text = s.status_text or {
+        text = s.status_text
+        if text and text[0].islower():
+            # Muse sends a predicate ("is working") meant to follow the
+            # agent's name
+            text = f"Muse {text}"
+        text = text or {
             "working": "Muse is working", "thinking": "Muse is thinking",
             "responding": "Muse is replying",
             "researching": "Muse is researching"}.get(
@@ -616,7 +621,7 @@ def chat_sort_key(chat: dict):
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: "MuseApp"):
         super().__init__(application=app, title=APP_NAME,
-                         default_width=1100, default_height=760)
+                         default_width=1200, default_height=800)
         self.app = app
         self.client = app.client
         self.settings = app.settings
@@ -1080,7 +1085,8 @@ def pairing_problem(pairing: dict) -> tuple[str, str] | None:
 
 class PreferencesDialog(Adw.PreferencesDialog):
     def __init__(self, app: "MuseApp"):
-        super().__init__(title="Status and settings")
+        super().__init__(title="Status and settings", content_height=640,
+                         content_width=640)
         self.app = app
         status = Adw.PreferencesPage(title="Status",
                                      icon_name="emblem-system-symbolic")
