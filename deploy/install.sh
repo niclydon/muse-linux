@@ -15,6 +15,8 @@
 # Env:    SDK_DIR   path to the muse-gadget-sdk checkout (default:
 #                   ~/musegadget-sdk)
 #         PORT      service port (default 8770)
+#         ALLOWED_HOSTS  comma-separated Host names a reverse proxy
+#                   forwards; detected from tailscale serve if unset
 set -euo pipefail
 
 REPO_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
@@ -40,12 +42,38 @@ python3 -m venv "$VENV"
 "$VENV/bin/pip" install -q --upgrade pip
 "$VENV/bin/pip" install -q "$SDK_DIR/linux"
 "$VENV/bin/pip" install -q --force-reinstall --no-deps "$REPO_DIR"
-"$VENV/bin/pip" install -q "$REPO_DIR[tui]"
+"$VENV/bin/pip" install -q "${REPO_DIR}[tui]"
 
 echo "==> web GUI build"
 (cd "$REPO_DIR/gui" && npm ci --no-audit --no-fund && npm run build)
 rm -rf "$PREFIX/gui"
 cp -r "$REPO_DIR/gui/dist" "$PREFIX/gui"
+
+echo "==> allowed host names"
+# The API refuses Host names other than loopback unless they are listed
+# in /etc/default/muse-linux. Write that file once: from ALLOWED_HOSTS
+# if given, else from a tailscale serve proxy to this port, if any.
+if [[ ! -f /etc/default/muse-linux ]]; then
+  HOSTS="${ALLOWED_HOSTS:-}"
+  if [[ -z "$HOSTS" ]] && command -v tailscale >/dev/null; then
+    HOSTS="$(tailscale serve status --json 2>/dev/null | python3 -c '
+import json, sys
+port = sys.argv[1]
+try:
+    web = json.load(sys.stdin).get("Web") or {}
+except Exception:
+    web = {}
+names = sorted({key.rsplit(":", 1)[0] for key, conf in web.items()
+                for handler in (conf.get("Handlers") or {}).values()
+                if str(handler.get("Proxy", "")).rstrip("/").endswith(":" + port)})
+print(",".join(names))
+' "$PORT" || true)"
+  fi
+  if [[ -n "$HOSTS" ]]; then
+    printf 'MUSE_LINUX_ALLOWED_HOSTS=%s\n' "$HOSTS" > /etc/default/muse-linux
+    echo "allowed host names: $HOSTS (in /etc/default/muse-linux)"
+  fi
+fi
 
 echo "==> systemd unit"
 sed "s|--port 8770|--port $PORT|" "$REPO_DIR/deploy/muse-linux.service" \
@@ -55,7 +83,7 @@ systemctl enable muse-linux.service >/dev/null
 systemctl restart muse-linux.service
 
 echo "==> smoke check"
-for i in $(seq 1 15); do
+for _ in $(seq 1 15); do
   if curl -fsS "http://127.0.0.1:$PORT/api/status" >/tmp/muse-linux-status.json 2>/dev/null; then
     cat /tmp/muse-linux-status.json
     echo

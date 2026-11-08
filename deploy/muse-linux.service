@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=simple
 User=root
 Environment=MUSE_LINUX_HOME=/var/lib/muse-linux
+# Host names a reverse proxy forwards (for example the tailscale serve
+# name), comma separated: MUSE_LINUX_ALLOWED_HOSTS=host.example.ts.net
+EnvironmentFile=-/etc/default/muse-linux
 ExecStart=/services/muse-linux/venv/bin/muse-linux serve --port 8770 --gui-dir /services/muse-linux/gui
 Restart=on-failure
 RestartSec=5
