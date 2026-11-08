@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Muse for Linux",
+  "version": "0.1.0",
+  "identifier": "dev.muselinux.client",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Muse for Linux",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 860,
+        "minHeight": 560
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "category": "Utility",
+    "shortDescription": "Unofficial Linux client for Meta Muse",
+    "longDescription": "Chat with Muse from Linux: real chats and side chats, streaming replies, working status and history, through the Muse Gadget SDK pairing on this machine.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ]
+  }
+}

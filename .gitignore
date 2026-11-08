@@ -9,3 +9,8 @@ chats.json
 pairing.json
 identity.json
 sdk_token
+
+# gui
+gui/node_modules/
+gui/dist/
+gui/src-tauri/target/

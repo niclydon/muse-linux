@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased
+
+- Native GUI backend API (`muse-linux serve`): status, chats,
+  history and an SSE message stream carrying working status, task
+  state and approval snapshots; can also serve the built GUI.
+- GUI in gui/: assistant-ui front end (sidebar of real chats, history
+  seeding, streaming, working-status pill, approvals card, light and
+  dark themes) plus a Tauri shell packaging it as a desktop app.
+
 ## 0.1.0 (2026-11-08)
 
 - Initial proof of concept.

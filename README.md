@@ -67,6 +67,16 @@ Point any OpenAI-compatible front end at `http://127.0.0.1:8765/v1`
 with any placeholder API key. Models: `muse` is the main chat;
 `muse-chat-<session-id>` is a side chat.
 
+## GUI
+
+A desktop-style client lives in [gui/](gui/): an
+[assistant-ui](https://www.assistant-ui.com) front end over a native
+backend API (`muse-linux serve`), chosen over the shim so working
+status, task state and approval snapshots stay visible. It runs as a
+web app served by the backend itself, or as a Tauri desktop app
+(.deb / AppImage) from `gui/src-tauri/`. See
+[gui/README.md](gui/README.md).
+
 ## Known limits
 
 - **No chat enumeration.** The gadget credential is refused every

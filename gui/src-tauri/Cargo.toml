@@ -1,0 +1,15 @@
+[package]
+name = "muse-linux"
+version = "0.1.0"
+description = "Unofficial Linux client for Meta Muse"
+authors = ["muse-linux contributors"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+strip = true

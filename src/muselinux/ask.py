@@ -41,12 +41,16 @@ class AskResult:
 async def ask(session, session_id: str | None, text: str,
               timeout_s: float = 180,
               on_status: Callable[[str], None] | None = None,
-              on_reply: Callable[[str], None] | None = None) -> AskResult:
+              on_reply: Callable[[str], None] | None = None,
+              on_approvals: Callable[[dict], None] | None = None
+              ) -> AskResult:
     """Run one turn on an open session.
 
     ``session_id`` targets a side chat; None targets the main chat.
     ``on_status`` receives each agent activity code as it is seen;
-    ``on_reply`` receives the reply text snapshot whenever it grows.
+    ``on_reply`` receives the reply text snapshot whenever it grows;
+    ``on_approvals`` receives each post-send approvals snapshot
+    payload, for front ends that render approval requests.
     """
     from musegadget.link_client import acknowledgement
     from musegadget.muse_turn import MuseTurn
@@ -68,6 +72,10 @@ async def ask(session, session_id: str | None, text: str,
                     bundle_seen.add(name)
                 if not send_issued:
                     continue  # pre-send events never belong to this turn
+                if name == "approvals.snapshot" and on_approvals:
+                    payload = event.get("payload")
+                    on_approvals(payload if isinstance(payload, dict)
+                                 else {})
                 if on_status and name == "agent.status":
                     payload = event.get("payload")
                     if isinstance(payload, dict):

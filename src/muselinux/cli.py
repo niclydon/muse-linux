@@ -1,4 +1,4 @@
-"""muse-linux command line: doctor, chats, history, ask, chat, probe, shim."""
+"""muse-linux CLI: doctor, chats, history, ask, chat, probe, shim, serve."""
 
 from __future__ import annotations
 
@@ -166,6 +166,12 @@ def main(argv: list[str] | None = None) -> int:
     shim.add_argument("--host", default="127.0.0.1")
     shim.add_argument("--port", type=int, default=8765)
 
+    serve = sub.add_parser("serve", help="serve the native GUI API")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8766)
+    serve.add_argument("--gui-dir",
+                       help="also serve the built GUI from this directory")
+
     args = parser.parse_args(argv)
 
     if args.command == "doctor":
@@ -200,6 +206,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "shim":
         from .shim import serve
         serve(args.host, args.port)
+        return 0
+    if args.command == "serve":
+        from .server import serve
+        serve(args.host, args.port, gui_dir=args.gui_dir)
         return 0
     return 2
 
