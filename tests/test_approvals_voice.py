@@ -44,8 +44,9 @@ class VoiceSession:
     def __init__(self):
         self.sent = None
 
-    async def send_voice(self, wav, session_id=None):
+    async def send_voice(self, wav, session_id=None, **kwargs):
         self.sent = (wav, session_id)
+        self.kwargs = kwargs
         return {"ok": True}
 
     async def stream_tts(self, message_id):
@@ -58,6 +59,7 @@ async def test_voice_helpers():
     result = await send_voice_message(session, "chat-1", b"RIFF....")
     assert result == {"ok": True}
     assert session.sent == (b"RIFF....", "chat-1")
+    assert session.kwargs.get("output_modality") == "voice"
     with pytest.raises(ValueError):
         await send_voice_message(session, None, b"x" * (MAX_WAV_BYTES + 1))
     assert await fetch_tts(session, "m1") == b"ID3rest"

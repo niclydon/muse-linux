@@ -28,7 +28,10 @@ async def send_voice_message(session, session_id: str | None,
         raise ValueError(
             f"voice message is {len(wav_bytes)} bytes; "
             f"the limit is {MAX_WAV_BYTES}")
-    return await session.send_voice(wav_bytes, session_id=session_id)
+    # Voice modality asks Muse to reply in voice, which is also
+    # what makes the reply speakable through stream_tts.
+    return await session.send_voice(wav_bytes, session_id=session_id,
+                                    output_modality="voice")
 
 
 async def fetch_tts(session, message_id: str) -> bytes:
