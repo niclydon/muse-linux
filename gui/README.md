@@ -19,15 +19,25 @@ snapshots.
 ## Layout
 
 - Sidebar: the local chat index (the server offers this credential
-  no chat enumeration; see ../docs/PROBE-RESULTS.md). Create chats,
-  add known chats by id, rename locally.
+  no chat enumeration; see ../docs/PROBE-RESULTS.md), with a filter
+  box for large indexes. Create chats, add known chats by id,
+  rename locally.
 - Header: connection state from `/api/status`, plus a live
   working-status pill while Muse is on a turn.
 - Chat pane: assistant-ui thread with history seeded from the
   canonical transcript and replies streamed from the backend's SSE
-  message endpoint.
-- Approval snapshots arriving during a turn surface as a dismissible
-  card above the thread.
+  message endpoint. A load-older button extends the window toward
+  the 200-message ceiling. Assistant messages carry a listen
+  button that plays the spoken reply (TTS) when the reply is
+  voice-modality.
+- Composer: text, plus a mic button that records a voice note
+  (converted to 16 kHz WAV in the browser) and streams the reply
+  like a text turn.
+- Approvals arriving during a turn surface as a dismissible card
+  above the thread, listing each pending approval. The card is
+  read-only: this credential cannot decide approvals (measured;
+  see ../docs/PROBE-RESULTS.md), so it says where they are decided
+  instead of offering buttons that would not work.
 - Light and dark themes, persisted per browser.
 
 ## Develop

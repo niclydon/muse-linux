@@ -26,3 +26,25 @@ new side chat created by this client; no existing chat was written to.
    always exits.
 3. The shim's streaming responses did not close the connection after
    `[DONE]` for HTTP/1.1 clients; they now send `Connection: close`.
+
+## Addendum: 0.2.0 verification, 2026-11-08
+
+The 0.2.0 build was deployed to the reference host with the repo's
+own deploy/install.sh and verified live after deployment:
+
+- Test suite: 25 passing (fake session; no pairing needed).
+- History window: the main chat returned 198 messages at the new
+  200 limit (previously capped at 50); has_more still true.
+- Voice note: a synthesized WAV posted to the voice endpoint was
+  answered in voice modality ("voice note received"), and the
+  reply was fetched through the TTS endpoint as a valid MP3
+  (12 KB, MPEG layer III, 24 kHz mono). A TTS request for a
+  text-modality reply correctly fails: the endpoint only speaks
+  voice-modality replies.
+- TUI: headless pilot against the live pairing rendered the test
+  chat's history, one Tab moved focus from the composer to the
+  chat list and back (the 0.1.0 client needed four), and a send
+  through the new multiline composer completed (reply verified in
+  canonical history).
+- Server: 97 chats in the seeded index served by /api/chats; the
+  GUI bundle served is the install script's fresh build.

@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased
+
+- Documentation pass for the public flip: README brought current
+  with the 0.2.0 surfaces (screenshots of both GUIs in both
+  themes, the service install, the voice commands), architecture
+  doc extended to the server, TUI, voice and approvals modules,
+  GUI README updated, and the 0.2.0 live verification recorded in
+  docs/SMOKE-TEST.md.
+
 ## 0.2.0 (2026-11-08)
 
 - Full-screen terminal UI (`muse-linux tui`, Textual): Muse app

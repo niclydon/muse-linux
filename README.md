@@ -9,19 +9,48 @@ An unofficial Linux client for Meta Muse, built on the
 > machine paired as a Muse gadget (see Quickstart).
 
 The Muse apps exist for Mac, iOS and the web. This project is the
-missing Linux piece: a terminal client today, an OpenAI-compatible
-shim that lets existing chat front ends talk to Muse today, and a
-small Python library (`muselinux`) that a desktop GUI can be built on.
+missing Linux piece: a full-screen terminal UI, a web GUI, a
+line-mode client, and an OpenAI-compatible shim that lets existing
+chat front ends talk to Muse, all over one small Python library
+(`muselinux`) that speaks to your actual Muse: the main chat and
+side chats by their real session ids, canonical history, streaming
+replies, live working status, voice notes and spoken replies.
+
+## Screenshots
+
+The terminal UI (dark theme), against a demo chat index:
+
+![Terminal UI, dark theme](docs/images/tui-dark.png)
+
+The web GUI (dark theme):
+
+![Web GUI, dark theme](docs/images/gui-dark.png)
+
+Light themes are built into both (the TUI toggles with ctrl+t, the
+web GUI with its theme button):
+
+![Terminal UI, light theme](docs/images/tui-light.png)
+
+![Web GUI, light theme](docs/images/gui-light.png)
 
 ## What it does
 
 - **Chat in the terminal** with your actual Muse: the main chat and
   side chats addressed by their real session ids, with streaming
   replies and live working status. `muse-linux tui` gives a
-  full-screen terminal UI in the Muse app's layout (chat sidebar,
-  streaming Markdown replies, working status, light and dark themes);
-  `muse-linux chat` is the plain line-mode client.
-- **History**: read a chat's canonical transcript.
+  full-screen terminal UI in the Muse app's layout (chat sidebar
+  with a filter, multiline composer, streaming Markdown replies,
+  working status, light and dark themes); `muse-linux chat` is the
+  plain line-mode client.
+- **Chat in the browser**: `muse-linux serve` runs a native API
+  plus a web GUI with the Muse-specific surface intact (working
+  status, task state, approval snapshots, voice). See
+  [gui/README.md](gui/README.md); deploy/install.sh installs it as
+  a systemd service.
+- **History**: read a chat's canonical transcript, up to the
+  measured 200-message server window, with load-older controls.
+- **Voice**: send voice notes and hear replies spoken (TTS), in
+  the CLI and the web GUI.
 - **Side chats**: create new ones, keep a local index of the chats you
   use, rename them locally.
 - **A local OpenAI-compatible shim** (`/v1/models`,
@@ -57,13 +86,21 @@ with the Muse Gadget SDK for Linux, so a pairing store exists at
 pip install "musegadget @ git+https://github.com/facebookincubator/muse-gadget-sdk#subdirectory=linux"
 
 git clone <this repo> && cd muse-linux
-pip install -e .
+pip install -e ".[tui]"
 
 muse-linux doctor          # pairing + VM reachability, no secrets printed
 muse-linux chats           # your local chat index
-muse-linux chat            # interactive terminal chat
+muse-linux tui             # full-screen terminal UI
+muse-linux chat            # line-mode terminal chat
 muse-linux ask "summarize my morning" --chat main
+muse-linux voice-note note.wav --chat main   # voice message
 muse-linux shim            # OpenAI-compatible shim on 127.0.0.1:8765
+```
+
+To run the web GUI as a service on the paired host instead:
+
+```sh
+sudo ./deploy/install.sh   # venv, GUI build, systemd unit, smoke check
 ```
 
 Point any OpenAI-compatible front end at `http://127.0.0.1:8765/v1`
