@@ -97,9 +97,12 @@ class Session:
         # Under load, Xvfb key repeat turns xdotool's key presses into
         # doubled letters; switch repeat off in this throwaway session's
         # own settings (XDG_CONFIG_HOME points into the work directory).
-        self.run("gsettings", "set", "org.gnome.desktop.peripherals.keyboard",
-                 "repeat", "false")
-        self.run("xset", "r", "off")
+        self.run(sys.executable, "-c",
+                 "from gi.repository import Gio; "
+                 "s = Gio.Settings.new('org.gnome.desktop.peripherals.keyboard'); "
+                 "s.set_boolean('repeat', False); Gio.Settings.sync()")
+        if shutil.which("xset"):
+            self.run("xset", "r", "off")
         self.key("Escape")      # leave the overview the shell starts in
         time.sleep(1)
 
