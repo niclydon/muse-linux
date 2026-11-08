@@ -9,14 +9,20 @@ An unofficial Linux client for Meta Muse, built on the
 > machine paired as a Muse gadget (see Quickstart).
 
 The Muse apps exist for Mac, iOS and the web. This project is the
-missing Linux piece: a full-screen terminal UI, a web GUI, a
-line-mode client, and an OpenAI-compatible shim that lets existing
+missing Linux piece: a native GNOME desktop app, a full-screen
+terminal UI, a web GUI, a line-mode client, and an OpenAI-compatible
+shim that lets existing
 chat front ends talk to Muse, all over one small Python library
 (`muselinux`) that speaks to your actual Muse: the main chat and
 side chats by their real session ids, canonical history, streaming
 replies, live working status, voice notes and spoken replies.
 
 ## Screenshots
+
+The GNOME desktop app, during the recorded live smoke test (more in
+[docs/GNOME.md](docs/GNOME.md)):
+
+![Muse for Linux on GNOME](docs/media/04-replies.png)
 
 The terminal UI (dark theme), against a demo chat index:
 
@@ -35,6 +41,11 @@ web GUI with its theme button):
 
 ## What it does
 
+- **A GNOME desktop app**, "Muse for Linux" (GTK 4 + libadwaita): your
+  chats in a sidebar, streaming replies with Markdown, live working
+  status, side chats, history, view-only approvals and desktop
+  notifications. See [docs/GNOME.md](docs/GNOME.md). A KDE Plasma
+  client on the same daemon comes next.
 - **Chat in the terminal** with your actual Muse: the main chat and
   side chats addressed by their real session ids, with streaming
   replies and live working status. `muse-linux tui` gives a
@@ -64,7 +75,8 @@ web GUI with its theme button):
   to end against the production service (see
   [docs/SMOKE-TEST.md](docs/SMOKE-TEST.md)).
 
-Current release: 0.2.1. The conversational core (chat, history,
+Current release: 0.2.1; 0.3.0 (unreleased) adds the desktop daemon
+and the GNOME app. The conversational core (chat, history,
 voice, approvals display) is complete within the capability map
 below; the limits in the next section are properties of the
 credential's scopes, not unfinished work.
@@ -113,7 +125,23 @@ Point any OpenAI-compatible front end at `http://127.0.0.1:8765/v1`
 with any placeholder API key. Models: `muse` is the main chat;
 `muse-chat-<session-id>` is a side chat.
 
-## GUI
+## Desktop install (daemon + GNOME client)
+
+```sh
+git clone <this repo> && cd muse-linux
+sudo ./install.sh
+```
+
+This installs the daemon as a system service (`muse-linuxd`), which
+holds the Muse session so the pairing never leaves root, adds you to
+the `muse-linux` group that may use it, and installs the GNOME app.
+Log out and back in once so the group applies, then open "Muse for
+Linux". `sudo ./install.sh --uninstall` removes it. Details, the
+security model and troubleshooting: [docs/DAEMON.md](docs/DAEMON.md);
+the socket protocol for other front ends:
+[docs/PROTOCOL.md](docs/PROTOCOL.md).
+
+## Web GUI
 
 A desktop-style client lives in [gui/](gui/): an
 [assistant-ui](https://www.assistant-ui.com) front end over a native
@@ -156,7 +184,21 @@ pytest
 ```
 
 Tests run anywhere: they drive a fake session that speaks the SDK's
-event shapes, no pairing or network needed.
+event shapes, no pairing or network needed. The daemon tests run the
+real daemon on a real socket against an in-memory Muse
+(`muselinux.testing`). The GNOME UI test needs GTK 4 + libadwaita and
+a display (CI runs it under `xvfb-run`).
+
+To work on the GNOME client without a pairing, run the real daemon
+against made-up chats and point the client at it:
+
+```sh
+python3 tools/demo_daemon.py --socket /tmp/muse-demo.sock &
+MUSE_LINUX_SOCKET=/tmp/muse-demo.sock muse-linux-gnome
+```
+
+`tools/smoke_gnome.py` is the recorded end-to-end smoke test (see
+[docs/SMOKE-TEST.md](docs/SMOKE-TEST.md)).
 
 ## License
 

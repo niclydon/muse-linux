@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "muse-linux"
-version = "0.2.1"
+version = "0.3.0"
 description = "An unofficial Linux client for Meta Muse, built on the Muse Gadget SDK (Link protocol)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -20,10 +20,15 @@ test = ["pytest", "pytest-asyncio", "textual>=0.80,<9"]
 
 [project.scripts]
 muse-linux = "muselinux.cli:main"
+muse-linux-gnome = "muselinux.gnome:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"muselinux.gnome" = ["data/icons/hicolor/*/apps/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

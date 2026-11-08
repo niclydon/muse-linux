@@ -35,8 +35,12 @@ def find_state_dir() -> Path | None:
     candidates.append(Path("/var/lib/musegadget"))
     candidates.append(Path.home() / ".musegadget")
     for candidate in candidates:
-        if (candidate / "pairing.json").exists():
-            return candidate
+        try:
+            if (candidate / "pairing.json").exists():
+                return candidate
+        except OSError:
+            # unreadable (a sandbox hides home directories): not this one
+            continue
     return None
 
 
@@ -102,10 +106,8 @@ async def fetch_vms(pairing: dict) -> tuple[list[dict], int | None]:
     )
 
 
-@asynccontextmanager
-async def open_session(state_dir: Path | None = None,
-                       display_name: str = "muse-linux") -> AsyncIterator:
-    """One ready ephemeral LinkSession. Yields the session object."""
+async def _build_session(state_dir: Path | None, display_name: str):
+    """A ready-to-run ephemeral LinkSession for the default VM."""
     from musegadget import __version__ as mg_version
     from musegadget.link_client import DeviceDescription, LinkSession
     try:
@@ -124,7 +126,7 @@ async def open_session(state_dir: Path | None = None,
             f"VM lookup failed (HTTP {status}); the paired device "
             "credentials may need a refresh or a re-pair")
     vm = pick_vm(vms)
-    session = LinkSession(
+    return LinkSession(
         noise_host=pairing.get("noise_host") or host_default,
         vm_id=vm["vm_id"],
         vm_auth_token=vm["vm_auth_token"],
@@ -134,22 +136,64 @@ async def open_session(state_dir: Path | None = None,
         run_command=lambda *unused: {"ok": False,
                                      "error": "unsupported command"},
     )
+
+
+async def _stop_session(stop: asyncio.Event, connection: asyncio.Task):
+    stop.set()
+    try:
+        await asyncio.wait_for(connection, 3)
+    except Exception:
+        connection.cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(connection, return_exceptions=True), 5)
+        except Exception:
+            pass
+
+
+@asynccontextmanager
+async def open_session(state_dir: Path | None = None,
+                       display_name: str = "muse-linux") -> AsyncIterator:
+    """One ready ephemeral LinkSession. Yields the session object."""
+    session = await _build_session(state_dir, display_name)
     stop = asyncio.Event()
     connection = asyncio.create_task(session.run(stop))
     try:
         await session.wait_transport_ready(35)
         yield session
     finally:
-        stop.set()
-        try:
-            await asyncio.wait_for(connection, 3)
-        except Exception:
-            connection.cancel()
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(connection, return_exceptions=True), 5)
-            except Exception:
-                pass
+        await _stop_session(stop, connection)
+
+
+class Connection:
+    """A long-lived ephemeral session plus a way to notice it ending.
+
+    ``session`` is the LinkSession; ``wait_closed()`` returns once the
+    transport has gone away (network loss, VM restart, server close),
+    so a caller can reconnect.
+    """
+
+    def __init__(self, session, connection: asyncio.Task):
+        self.session = session
+        self._connection = connection
+
+    async def wait_closed(self) -> None:
+        await asyncio.shield(self._connection)
+
+
+@asynccontextmanager
+async def connect(state_dir: Path | None = None,
+                  display_name: str = "muse-linux") -> AsyncIterator:
+    """Like open_session, for callers that hold the session open and
+    must react when it drops. Yields a :class:`Connection`."""
+    session = await _build_session(state_dir, display_name)
+    stop = asyncio.Event()
+    connection = asyncio.create_task(session.run(stop))
+    try:
+        await session.wait_transport_ready(35)
+        yield Connection(session, connection)
+    finally:
+        await _stop_session(stop, connection)
 
 
 async def doctor(state_dir: Path | None = None) -> dict:

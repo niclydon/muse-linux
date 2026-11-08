@@ -1,5 +1,41 @@
 # Changes
 
+## 0.3.0 (unreleased)
+
+- Daemon (`muse-linux daemon`, systemd unit `muse-linuxd`): the one
+  process that reads the root-only pairing store. One long-lived
+  ephemeral session with reconnect and backoff, a shared subscription
+  per watched chat, typed events (status with activity text, task,
+  approvals, user messages, streaming replies), opened on demand and
+  closed when idle. Serves desktop clients over a Unix socket that
+  only root and the `muse-linux` group can use; runs without
+  capabilities under systemd sandboxing that hides everything but the
+  pairing store and its own state. A client that stops reading is
+  disconnected instead of slowing the others, requests per client are
+  capped, and history that would not fit one protocol line is trimmed
+  to the newest messages. Protocol in docs/PROTOCOL.md.
+- GNOME client (`muse-linux-gnome`, "Muse for Linux"; GTK 4 +
+  libadwaita 1.5+): chat list with filter and unread dots, chat view
+  with streaming Markdown replies, working status and task state,
+  side chats (new, add by ID, rename, remove from list), history with
+  load older, view-only approvals banner, desktop notifications,
+  status and settings dialog, keyboard shortcuts, light and dark.
+- `muselinux.client`: toolkit-agnostic socket client with automatic
+  reconnect, shared by the desktop clients.
+- `install.sh`: installs or removes the daemon and the GNOME client
+  (venv in /opt/muse-linux, systemd unit, group, desktop entry).
+- Chat index: changes lock and re-read the file, so the daemon, the
+  web service and the terminal tools sharing it no longer drop each
+  other's chats; a damaged index is never overwritten; `remove` and
+  last-activity ordering added.
+- Live events through the daemon drop Muse-app widget embed tokens,
+  like history does since 0.2.1.
+- Fixed: the web API's rename route returned a server error.
+- `tools/demo_daemon.py` (the real daemon against made-up chats) and
+  `tools/smoke_gnome.py` (recorded end-to-end GNOME smoke test). The
+  desktop smoke test against the production service passed; see
+  docs/SMOKE-TEST.md, with screenshots and a screen recording.
+
 ## 0.2.1 (2026-11-08)
 
 - Display text is cleaned of Muse-app widget embed tokens

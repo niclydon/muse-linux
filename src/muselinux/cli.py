@@ -1,4 +1,5 @@
-"""muse-linux CLI: doctor, chats, history, ask, chat, probe, shim, serve."""
+"""muse-linux CLI: doctor, chats, history, ask, chat, probe, shim, serve,
+daemon, gnome."""
 
 from __future__ import annotations
 
@@ -228,6 +229,19 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--gui-dir",
                        help="also serve the built GUI from this directory")
 
+    daemon = sub.add_parser(
+        "daemon", help="run the credential-owning daemon for desktop "
+                       "clients (normally started by systemd)")
+    daemon.add_argument("--socket", default=None,
+                        help="socket path (default /run/muse-linux/socket)")
+    daemon.add_argument("--socket-group", default=None,
+                        help="group allowed to use the socket")
+    daemon.add_argument("--index", default=None,
+                        help="chat index file (default: the shared index)")
+
+    gnome = sub.add_parser("gnome", help="open the GNOME desktop client")
+    gnome.add_argument("gnome_args", nargs=argparse.REMAINDER)
+
     voice_note = sub.add_parser(
         "voice-note", help="send a WAV file as a voice message")
     voice_note.add_argument("wav")
@@ -286,6 +300,15 @@ def main(argv: list[str] | None = None) -> int:
         from .server import serve
         serve(args.host, args.port, gui_dir=args.gui_dir)
         return 0
+    if args.command == "daemon":
+        from .client import default_socket_path
+        from .daemon import run as run_daemon
+        run_daemon(args.socket or default_socket_path(), args.index,
+                   args.socket_group)
+        return 0
+    if args.command == "gnome":
+        from .gnome import main as gnome_main
+        return gnome_main(args.gnome_args)
     if args.command == "voice-note":
         return asyncio.run(_voice_note(args))
     if args.command == "say":
