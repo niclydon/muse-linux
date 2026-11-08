@@ -93,9 +93,12 @@ disturbing the gadget.
 - The daemon's socket is usable by root and the `muse-linux` group
   only, and the daemon runs without capabilities under systemd
   sandboxing (see [DAEMON.md](DAEMON.md)).
-- The shim and the GUI server bind to localhost by default. They have
-  no authentication of their own because the trust boundary is the
-  machine; do not expose them on a network without putting an
-  authenticating proxy in front.
+- The shim and the web API bind to localhost by default. They have no
+  authentication of their own because the trust boundary is local
+  programs; do not expose them on a network without an authenticating
+  proxy in front. Web pages the user opens are outside that boundary:
+  `muselinux.localguard` refuses foreign `Host` names (DNS rebinding),
+  foreign `Origin`s and cross-site requests, and writes need a JSON or
+  WAV content type. See SECURITY.md.
 - Messages sent through this client are attributed by the server to
   the paired device, like any gadget-originated message.

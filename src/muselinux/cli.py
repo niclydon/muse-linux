@@ -222,12 +222,18 @@ def main(argv: list[str] | None = None) -> int:
     shim = sub.add_parser("shim", help="serve the OpenAI-compatible shim")
     shim.add_argument("--host", default="127.0.0.1")
     shim.add_argument("--port", type=int, default=8765)
+    shim.add_argument("--allow-host", action="append", default=[],
+                      help="also accept this Host name (for a reverse "
+                           "proxy); repeatable")
 
     serve = sub.add_parser("serve", help="serve the native GUI API")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8766)
     serve.add_argument("--gui-dir",
                        help="also serve the built GUI from this directory")
+    serve.add_argument("--allow-host", action="append", default=[],
+                       help="also accept this Host name (for a reverse "
+                            "proxy such as tailscale serve); repeatable")
 
     daemon = sub.add_parser(
         "daemon", help="run the credential-owning daemon for desktop "
@@ -294,11 +300,12 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_probe(args))
     if args.command == "shim":
         from .shim import serve
-        serve(args.host, args.port)
+        serve(args.host, args.port, allow_hosts=args.allow_host)
         return 0
     if args.command == "serve":
         from .server import serve
-        serve(args.host, args.port, gui_dir=args.gui_dir)
+        serve(args.host, args.port, gui_dir=args.gui_dir,
+              allow_hosts=args.allow_host)
         return 0
     if args.command == "daemon":
         from .client import default_socket_path

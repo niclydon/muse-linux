@@ -32,6 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import __version__
 from .index import ChatIndex
+from .localguard import allowed_hosts, is_json, refusal
 
 MODEL_PREFIX = "muse-chat-"
 
@@ -86,8 +87,10 @@ def run_completion(session_id: str | None, text: str,
     return asyncio.run(_completion(session_id, text, on_reply))
 
 
-def make_handler(index: ChatIndex | None = None):
+def make_handler(index: ChatIndex | None = None, bound_host="127.0.0.1",
+                 extra_hosts=()):
     index = index or ChatIndex()
+    hosts = allowed_hosts(bound_host, extra_hosts)
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -103,7 +106,17 @@ def make_handler(index: ChatIndex | None = None):
             self.end_headers()
             self.wfile.write(body)
 
+        def _guard(self) -> bool:
+            """Refuse requests a web page could have forged (see
+            muselinux.localguard)."""
+            if refusal(self.headers, hosts):
+                self._json(403, {"error": {"message": "forbidden"}})
+                return False
+            return True
+
         def do_GET(self):
+            if not self._guard():
+                return
             if self.path.rstrip("/") in ("/v1/models", "/models"):
                 self._json(200, {"object": "list",
                                  "data": models_for_index(index)})
@@ -114,6 +127,12 @@ def make_handler(index: ChatIndex | None = None):
                 self._json(404, {"error": {"message": "not found"}})
 
         def do_POST(self):
+            if not self._guard():
+                return
+            if not is_json(self.headers.get("Content-Type")):
+                self._json(415, {"error": {
+                    "message": "Content-Type must be application/json"}})
+                return
             if not self.path.rstrip("/").endswith("/chat/completions"):
                 self._json(404, {"error": {"message": "not found"}})
                 return
@@ -196,8 +215,9 @@ def make_handler(index: ChatIndex | None = None):
     return Handler
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
-    server = ThreadingHTTPServer((host, port), make_handler())
+def serve(host: str = "127.0.0.1", port: int = 8765, allow_hosts=()) -> None:
+    server = ThreadingHTTPServer(
+        (host, port), make_handler(bound_host=host, extra_hosts=allow_hosts))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     print(f"muse-linux shim listening on http://{host}:{port}/v1")

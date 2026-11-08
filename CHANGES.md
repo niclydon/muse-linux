@@ -35,6 +35,14 @@
   `tools/smoke_gnome.py` (recorded end-to-end GNOME smoke test). The
   desktop smoke test against the production service passed; see
   docs/SMOKE-TEST.md, with screenshots and a screen recording.
+- The web API and the shim refuse requests a web page could forge:
+  foreign `Host` names (DNS rebinding), foreign `Origin`s, cross-site
+  requests without an `Origin`, and writes without a JSON (or WAV)
+  content type. The API no longer sends wildcard CORS headers; only
+  Tauri app origins get CORS. Names behind a reverse proxy, Docker or
+  a `0.0.0.0` bind are allowed with `--allow-host` or
+  `MUSE_LINUX_ALLOWED_HOSTS`; `deploy/install.sh` fills that in from
+  `tailscale serve`, skipping Funnel. See SECURITY.md.
 
 ## 0.2.1 (2026-11-08)
 

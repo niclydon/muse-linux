@@ -23,9 +23,11 @@ Message-stream events are JSON, one per SSE message:
     {"type": "done", "completion": "...", "task_status": "..."}
     {"type": "error", "error": "..."}
 
-Same trust boundary as the shim: anyone who can reach the port can
-act as the paired device. Localhost only, unless an authenticating
-proxy sits in front.
+Same trust boundary as the shim: any local program that can reach the
+port can act as the paired device. Web pages cannot: the server
+refuses foreign Origin and non-loopback Host headers and requires a
+JSON or WAV content type on writes (see muselinux.localguard).
+Localhost only, unless an authenticating proxy sits in front.
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ from .approvals import parse_snapshot
 from .ask import ask
 from .history import fetch_history
 from .index import ChatIndex
+from .localguard import allowed_hosts, cors_origin, is_json, refusal
 from .voice import fetch_tts, send_voice_message
 
 DEFAULT_PORT = 8766
@@ -273,8 +276,14 @@ def run_voice_turn_streaming(session_id, wav_bytes, emit):
     return asyncio.run(_go())
 
 
-def make_handler(index: ChatIndex, gui_dir=None):
+VOICE_TYPES = {"audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave"}
+
+
+def make_handler(index: ChatIndex, gui_dir=None, bound_host="127.0.0.1",
+                 extra_hosts=()):
     from pathlib import Path
+
+    hosts = allowed_hosts(bound_host, extra_hosts)
 
     gui_root = Path(gui_dir).resolve() if gui_dir else None
 
@@ -285,12 +294,26 @@ def make_handler(index: ChatIndex, gui_dir=None):
             pass
 
         # -- helpers -------------------------------------------------
+        def _cors(self):
+            allowed = cors_origin(self.headers.get("Origin"))
+            if allowed:
+                self.send_header("Access-Control-Allow-Origin", allowed)
+                self.send_header("Vary", "Origin")
+
+        def _guard(self) -> bool:
+            """Refuse requests a web page could have forged."""
+            why = refusal(self.headers, hosts)
+            if why:
+                self._json({"error": why}, 403)
+                return False
+            return True
+
         def _json(self, obj, status=200):
             body = json.dumps(obj).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._cors()
             self.end_headers()
             self.wfile.write(body)
 
@@ -311,8 +334,10 @@ def make_handler(index: ChatIndex, gui_dir=None):
 
         # -- routing ---------------------------------------------------
         def do_OPTIONS(self):
+            if not self._guard():
+                return
             self.send_response(204)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._cors()
             self.send_header("Access-Control-Allow-Methods",
                              "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers",
@@ -339,11 +364,16 @@ def make_handler(index: ChatIndex, gui_dir=None):
                 mimetypes.guess_type(target.name)[0]
                 or "application/octet-stream")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Content-Security-Policy",
+                             "frame-ancestors 'none'")
             self.end_headers()
             self.wfile.write(body)
             return True
 
         def do_GET(self):
+            if not self._guard():
+                return
             parsed = urllib.parse.urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
             if not parts or parts[0] != "api":
@@ -398,15 +428,27 @@ def make_handler(index: ChatIndex, gui_dir=None):
                 self.send_response(200)
                 self.send_header("Content-Type", "audio/mpeg")
                 self.send_header("Content-Length", str(len(audio)))
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self._cors()
                 self.end_headers()
                 self.wfile.write(audio)
             else:
                 self._json({"error": "not found"}, 404)
 
         def do_POST(self):
+            if not self._guard():
+                return
             parsed = urllib.parse.urlparse(self.path)
             parts = [p for p in parsed.path.split("/") if p]
+            content_type = self.headers.get("Content-Type")
+            is_voice = len(parts) == 4 and parts[3] == "voice"
+            if is_voice:
+                base = (content_type or "").split(";", 1)[0].strip().lower()
+                if base not in VOICE_TYPES:
+                    self._json({"error": "send audio/wav"}, 415)
+                    return
+            elif not is_json(content_type):
+                self._json({"error": "send application/json"}, 415)
+                return
             if parts == ["api", "chats"]:
                 label = str(self._body().get("label") or "New chat")
                 self._json(chat_public(index.create(label)), 201)
@@ -478,7 +520,7 @@ def make_handler(index: ChatIndex, gui_dir=None):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "close")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._cors()
             self.close_connection = True
             self.end_headers()
             while True:
@@ -503,9 +545,10 @@ def make_handler(index: ChatIndex, gui_dir=None):
 
 
 def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
-          index: ChatIndex | None = None, gui_dir=None):
+          index: ChatIndex | None = None, gui_dir=None, allow_hosts=()):
     server = ThreadingHTTPServer(
-        (host, port), make_handler(index or ChatIndex(), gui_dir))
+        (host, port), make_handler(index or ChatIndex(), gui_dir,
+                                   bound_host=host, extra_hosts=allow_hosts))
     print(f"muse-linux native API on http://{host}:{port}/api")
     try:
         server.serve_forever()
