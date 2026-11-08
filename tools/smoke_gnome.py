@@ -108,8 +108,8 @@ class Session:
         self.run("xdotool", "type", "--delay", "18", text)
 
     def screenshot(self, path: Path, window=None):
-        target = window or "root"
-        self.run("import", "-window", target, str(path))
+        # the whole screen, so the GNOME Shell top bar is in the picture
+        self.run("import", "-window", "root", str(path))
 
     def find_window(self, name, timeout=30):
         deadline = time.time() + timeout
@@ -222,6 +222,8 @@ def main() -> int:
             stderr=subprocess.STDOUT)
         win = session.find_window("Muse for Linux")
         session.run("xdotool", "windowactivate", "--sync", win)
+        time.sleep(1)
+        session.key("super+Up")     # maximize, like a normal desktop
         time.sleep(3)
         note("client open")
         session.screenshot(out / "01-new-side-chat.png", win)
@@ -240,7 +242,6 @@ def main() -> int:
             watcher.wait_idle(chat["id"])
             time.sleep(2)
         session.screenshot(out / "04-replies.png", win)
-        session.screenshot(out / "04-replies-desktop.png")
 
         session.key("F2")
         time.sleep(1)
