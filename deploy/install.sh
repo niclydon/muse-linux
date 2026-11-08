@@ -18,7 +18,10 @@
 set -euo pipefail
 
 REPO_DIR="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
-SDK_DIR="${SDK_DIR:-$HOME/musegadget-sdk}"
+# Under sudo, $HOME is root's; the SDK checkout usually lives in the
+# invoking user's home.
+CALLER_HOME="$(getent passwd "${SUDO_USER:-$(id -un)}" | cut -d: -f6)"
+SDK_DIR="${SDK_DIR:-${CALLER_HOME:-$HOME}/musegadget-sdk}"
 PORT="${PORT:-8770}"
 PREFIX=/services/muse-linux
 VENV="$PREFIX/venv"
