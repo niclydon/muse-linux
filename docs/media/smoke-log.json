@@ -6,41 +6,41 @@
       "step": "gnome shell up"
     },
     {
-      "t": 12.0,
+      "t": 12.3,
       "step": "client open"
     },
     {
-      "t": 23.0,
+      "t": 20.9,
       "step": "message 1 sent"
     },
     {
-      "t": 38.0,
+      "t": 32.8,
       "step": "reply 1 done",
       "chars": 20
     },
     {
-      "t": 49.0,
+      "t": 41.8,
       "step": "message 2 sent"
     },
     {
-      "t": 56.0,
+      "t": 49.8,
       "step": "reply 2 done",
       "chars": 20
     },
     {
-      "t": 63.0,
+      "t": 56.8,
       "step": "renamed"
     },
     {
-      "t": 67.2,
+      "t": 61.8,
       "step": "history reloaded"
     },
     {
-      "t": 72.3,
+      "t": 67.0,
       "step": "status dialog"
     },
     {
-      "t": 73.1,
+      "t": 67.1,
       "step": "history check",
       "roles": [
         "user",
