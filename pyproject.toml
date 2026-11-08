@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "muse-linux"
-version = "0.2.0"
+version = "0.2.1"
 description = "An unofficial Linux client for Meta Muse, built on the Muse Gadget SDK (Link protocol)"
 readme = "README.md"
 license = "Apache-2.0"

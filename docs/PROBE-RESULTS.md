@@ -1,10 +1,11 @@
-# Probe results: what the gadget credential can reach
+# Capability map: what the gadget credential can reach
 
-Measured 2026-11-08 against a production Muse VM, from a Linux host
-paired as a Muse gadget, through ephemeral Link sessions
-(`register_device=False`). Probes are read-only and record structure
-and status only, never message content. Re-run them any time with
-`muse-linux probe`.
+This is the measured capability envelope the client is designed
+around, recorded 2026-11-08 against a production Muse VM, from a
+Linux host paired as a Muse gadget, through ephemeral Link
+sessions (`register_device=False`). The probes behind it are
+read-only and record structure and status only, never message
+content. Re-run them any time with `muse-linux probe`.
 
 ## Allowed (HTTP 200)
 

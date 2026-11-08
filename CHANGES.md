@@ -1,7 +1,11 @@
 # Changes
 
-## Unreleased
+## 0.2.1 (2026-11-08)
 
+- Display text is cleaned of Muse-app widget embed tokens
+  (`[[hatch_widget:...]]`), which render natively only inside the
+  Muse app; every surface (history, live replies, TUI, GUI, shim)
+  now shows the reply text without the raw token.
 - Documentation pass for the public flip: README brought current
   with the 0.2.0 surfaces (screenshots of both GUIs in both
   themes, the service install, the voice commands), architecture

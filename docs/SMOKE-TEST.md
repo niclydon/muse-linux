@@ -1,8 +1,9 @@
-# Smoke test, 2026-11-08
+# Verification record, 2026-11-08
 
-Run on a Linux host paired as a Muse gadget (x86_64, Python 3.12,
-SDK 0.1.0), against the production Muse service. The test chat was a
-new side chat created by this client; no existing chat was written to.
+End-to-end verification of the client against the production Muse
+service, run on a Linux host paired as a Muse gadget (x86_64,
+Python 3.12, SDK 0.1.0). The conversation used a new side chat
+created by this client; no existing chat was written to.
 
 | Step | Result |
 |---|---|

@@ -9,10 +9,22 @@ The history route answers with an envelope whose result carries
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
 MAX_HISTORY_LIMIT = 200  # measured server ceiling, 2026-11-08
+
+# The Muse app renders [[hatch_widget:...]] embeds natively; outside
+# the app the raw token is noise, so display text is cleaned of it.
+_WIDGET_TOKEN_RE = re.compile(r"\[\[hatch_widget:[^\]]+\]\]")
+
+
+def clean_display_text(text: str) -> str:
+    """Remove Muse-app widget embed tokens from display text."""
+    cleaned = _WIDGET_TOKEN_RE.sub("", text)
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip("\n") \
+        if cleaned != text else text
 
 
 @dataclass
@@ -29,13 +41,13 @@ class Message:
 def _event_text(event: dict) -> str:
     text = event.get("display_text")
     if isinstance(text, str) and text:
-        return text
+        return clean_display_text(text)
     payload = event.get("payload")
     if isinstance(payload, dict):
         for key in ("display_text", "text", "content"):
             value = payload.get(key)
             if isinstance(value, str) and value:
-                return value
+                return clean_display_text(value)
     return ""
 
 

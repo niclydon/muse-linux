@@ -24,3 +24,17 @@ async def test_parse_history_from_fake_session():
 def test_parse_history_tolerates_bad_envelope():
     assert parse_history({"response": None}) == ([], False)
     assert parse_history({}) == ([], False)
+
+
+def test_widget_tokens_are_stripped_from_display_text():
+    result = _result([
+        {"event_name": "message.assistant",
+         "display_text": "Here is the plan.\n\n"
+                         "[[hatch_widget:widget-4033d-fa78]]\n",
+         "message_id": "a1"},
+        {"event_name": "message.user", "display_text": "Thanks",
+         "message_id": "u1"},
+    ])
+    messages, _ = parse_history(result)
+    assert messages[0].text == "Here is the plan."
+    assert messages[1].text == "Thanks"

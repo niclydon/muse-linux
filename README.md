@@ -57,11 +57,17 @@ web GUI with its theme button):
   `/v1/chat/completions`, streaming included) so front ends such as
   Jan, LibreChat or Open WebUI can use Muse as their backend with no
   code changes on their side.
-- **Probes** that map exactly which parts of the Muse VM API the
-  gadget credential can reach, so the client's limits are measured,
-  not guessed (see [docs/PROBE-RESULTS.md](docs/PROBE-RESULTS.md)).
-  The whole stack is smoke-tested end to end against the production
-  service (see [docs/SMOKE-TEST.md](docs/SMOKE-TEST.md)).
+- **A measured capability map**: the client is designed around
+  exactly what the gadget credential can reach, verified route by
+  route rather than assumed (see
+  [docs/PROBE-RESULTS.md](docs/PROBE-RESULTS.md)), and verified end
+  to end against the production service (see
+  [docs/SMOKE-TEST.md](docs/SMOKE-TEST.md)).
+
+Current release: 0.2.1. The conversational core (chat, history,
+voice, approvals display) is complete within the capability map
+below; the limits in the next section are properties of the
+credential's scopes, not unfinished work.
 
 ## How it works, in one paragraph
 

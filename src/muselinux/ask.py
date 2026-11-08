@@ -22,6 +22,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Awaitable, Callable
 
+from muselinux.history import clean_display_text
+
 BUNDLE_EVENTS = {"agent.status", "task.status", "approvals.snapshot"}
 QUIET_GRACE_S = 8.0
 
@@ -92,8 +94,8 @@ async def ask(session, session_id: str | None, text: str,
                 except Exception:
                     pass
                 if on_reply and turn.replies:
-                    snapshot = "\n\n".join(
-                        r.text for r in turn.replies.values() if r.text)
+                    snapshot = clean_display_text("\n\n".join(
+                        r.text for r in turn.replies.values() if r.text))
                     if snapshot != last_snapshot:
                         last_snapshot = snapshot
                         on_reply(snapshot)
@@ -164,7 +166,8 @@ async def ask(session, session_id: str | None, text: str,
         if raw.get("event") == "task.status" and payload.get("status"):
             task_status = payload["status"]
     replies = list(turn.replies.values())
-    reply_text = "\n\n".join(r.text for r in replies if r.text)
+    reply_text = clean_display_text(
+        "\n\n".join(r.text for r in replies if r.text))
     send_message_id = None
     response = send_result.get("response")
     if isinstance(response, dict):
