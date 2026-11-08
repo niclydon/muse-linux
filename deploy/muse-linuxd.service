@@ -30,10 +30,14 @@ ProtectSystem=strict
 ProtectHome=yes
 # Root can read any root-owned file, so hide everything it does not
 # need: only the pairing store and its own state are visible in /var/lib.
+# install.sh creates /var/lib/musegadget so a pairing made after the
+# install is visible without a restart.
 TemporaryFileSystem=/var/lib:ro
 BindReadOnlyPaths=-/var/lib/musegadget
+# distributions that keep the CA store under /var/lib (openSUSE)
+BindReadOnlyPaths=-/var/lib/ca-certificates
 BindPaths=/var/lib/muse-linux
-InaccessiblePaths=-/etc/shadow -/etc/gshadow -/etc/ssh -/root
+InaccessiblePaths=-/etc/shadow -/etc/gshadow -/etc/ssh
 ProtectProc=invisible
 ProcSubset=pid
 PrivateTmp=yes

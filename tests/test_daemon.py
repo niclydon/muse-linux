@@ -399,3 +399,27 @@ async def test_history_text_has_control_characters_removed(stack):
     client = make_client()
     result = await call(client, "history", chat="main")
     assert result["messages"][-1]["text"] == "bell and[31m escape"
+
+
+async def test_older_sdk_without_opened_still_goes_live(monkeypatch):
+    """SDKs before the ``opened`` argument: live at the first event, or
+    after a quiet grace period."""
+    import muselinux.daemon as daemon_mod
+
+    monkeypatch.setattr(daemon_mod, "OPEN_GRACE_S", 0.05)
+
+    class OldSession:
+        def __init__(self, first_after):
+            self.first_after = first_after
+
+        async def subscribe_chat(self, session_id=None):
+            await asyncio.sleep(self.first_after)
+            yield {"event": "agent.status", "payload": {}}
+
+    for first_after in (0.0, 0.3):
+        opened = asyncio.Event()
+        gen = daemon_mod._subscribe_chat(OldSession(first_after), None, opened)
+        task = asyncio.create_task(gen.__anext__())
+        await asyncio.wait_for(opened.wait(), 1)
+        assert await task == {"event": "agent.status", "payload": {}}
+        await gen.aclose()

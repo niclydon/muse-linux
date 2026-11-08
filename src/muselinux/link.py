@@ -35,8 +35,12 @@ def find_state_dir() -> Path | None:
     candidates.append(Path("/var/lib/musegadget"))
     candidates.append(Path.home() / ".musegadget")
     for candidate in candidates:
-        if (candidate / "pairing.json").exists():
-            return candidate
+        try:
+            if (candidate / "pairing.json").exists():
+                return candidate
+        except OSError:
+            # unreadable (a sandbox hides home directories): not this one
+            continue
     return None
 
 

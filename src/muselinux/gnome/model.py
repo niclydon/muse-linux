@@ -102,10 +102,13 @@ class ChatState:
             history.append(message)
             if message.message_id:
                 ids.add(message.message_id)
-        # keep in-flight sends and live messages newer than this history
+        # keep in-flight sends and live messages newer than this history;
+        # an unconfirmed send that history shows did land is dropped
+        landed = {m.text.strip() for m in history if m.role == "user"}
         extra = [m for m in self.messages
                  if (m.pending or m.error or m.live)
-                 and (m.message_id is None or m.message_id not in ids)]
+                 and (m.message_id is None or m.message_id not in ids)
+                 and not (m.uncertain and m.text.strip() in landed)]
         self.messages = history + extra
         self.loaded = True
         self.has_more = bool(result.get("has_more"))
@@ -171,9 +174,13 @@ class ChatState:
                 return Change()
             text = event.get("text") or ""
             for message in self.messages:
-                if message.pending and message.message_id is None \
+                if (message.pending or message.uncertain) \
+                        and message.message_id is None \
                         and message.text.strip() == text.strip():
                     message.message_id = message_id
+                    message.pending = False
+                    message.error = None
+                    message.uncertain = False
                     return Change(messages=[message])
             message = Message(role="user", text=text, message_id=message_id,
                               occurred_at_ms=event.get("occurred_at_ms"),

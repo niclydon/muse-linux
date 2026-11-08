@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import grp
+import inspect
 import json
 import logging
 import os
@@ -40,7 +41,9 @@ log = logging.getLogger("muselinux.daemon")
 MAX_CLIENTS = 32
 MAX_INFLIGHT = 8          # concurrent requests per client
 OUTBOX_MAX = 2000         # queued outgoing messages per client
+OUTBOX_MAX_BYTES = 16 * 1024 * 1024   # and queued bytes
 WRITE_TIMEOUT_S = 10.0
+OPEN_GRACE_S = 3.0        # older SDKs: when to call a quiet stream live
 RESPONSE_BUDGET = MAX_LINE_BYTES - 64 * 1024
 MAX_WATCHES = 16
 IDLE_S = 300.0
@@ -68,6 +71,7 @@ class Client:
         self.uid = _peer_uid(writer)
         self.closed = False
         self.outbox: asyncio.Queue = asyncio.Queue(maxsize=OUTBOX_MAX)
+        self.queued_bytes = 0
         self.slots = asyncio.Semaphore(MAX_INFLIGHT)
         self.writer_task = asyncio.create_task(self._write_loop())
 
@@ -81,17 +85,25 @@ class Client:
             log.warning("dropping an oversized message for client %d",
                         self.number)
             return
+        if self.queued_bytes + len(data) > OUTBOX_MAX_BYTES:
+            log.warning("client %d is not reading; disconnecting it",
+                        self.number)
+            self.abort()
+            return
         try:
             self.outbox.put_nowait(data)
         except asyncio.QueueFull:
             log.warning("client %d is not reading; disconnecting it",
                         self.number)
             self.abort()
+            return
+        self.queued_bytes += len(data)
 
     async def _write_loop(self) -> None:
         try:
             while True:
                 data = await self.outbox.get()
+                self.queued_bytes -= len(data)
                 self.writer.write(data)
                 await asyncio.wait_for(self.writer.drain(), WRITE_TIMEOUT_S)
         except asyncio.CancelledError:
@@ -104,6 +116,40 @@ class Client:
         transport = getattr(self.writer, "transport", None)
         if transport is not None:
             transport.abort()
+
+
+def _supports_opened(session) -> bool:
+    try:
+        params = inspect.signature(session.subscribe_chat).parameters
+    except (TypeError, ValueError):
+        return False
+    return "opened" in params or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
+async def _subscribe_chat(session, session_id, opened: asyncio.Event):
+    """subscribe_chat, with ``opened`` set once the stream is up.
+
+    Newer SDKs take an ``opened`` event and set it when the HTTP stream
+    is established. With an SDK that does not, treat the stream as open
+    at its first event, or after it has run a few seconds without
+    failing (an idle chat may send nothing at first)."""
+    if _supports_opened(session):
+        async for raw in session.subscribe_chat(session_id, opened=opened):
+            yield raw
+        return
+
+    async def settle():
+        await asyncio.sleep(OPEN_GRACE_S)
+        opened.set()
+
+    timer = asyncio.create_task(settle())
+    try:
+        async for raw in session.subscribe_chat(session_id):
+            opened.set()
+            yield raw
+    finally:
+        timer.cancel()
 
 
 def _size(obj: dict) -> int:
@@ -321,8 +367,8 @@ class Daemon:
             opened = asyncio.Event()
             notifier = self._spawn(self._when_opened(watch, opened))
             try:
-                async for raw in conn.session.subscribe_chat(
-                        watch.session_id, opened=opened):
+                async for raw in _subscribe_chat(
+                        conn.session, watch.session_id, opened):
                     delay = 1.0
                     for event in watch.translator.feed(raw):
                         await self._chat_event(watch, event)
@@ -428,7 +474,9 @@ class Daemon:
                 # at most MAX_INFLIGHT requests per client at a time;
                 # reading waits until one finishes
                 await client.slots.acquire()
-                self._spawn(self._handle(client, line))
+                task = self._spawn(self._handle_one(client, line))
+                # released however the task ends, even cancelled unstarted
+                task.add_done_callback(lambda _t, c=client: c.slots.release())
         finally:
             client.closed = True
             client.writer_task.cancel()
@@ -439,12 +487,6 @@ class Daemon:
             with suppress(Exception):
                 writer.close()
             log.info("client %d left", client.number)
-
-    async def _handle(self, client: Client, line: bytes) -> None:
-        try:
-            await self._handle_one(client, line)
-        finally:
-            client.slots.release()
 
     @staticmethod
     async def _reply(client: Client, response: dict) -> None:
@@ -599,10 +641,16 @@ class Daemon:
         public = [message_public(m) for m in messages]
         result = {"chat": chat["id"], "messages": public,
                   "has_more": has_more, "limit": limit}
-        # keep the newest messages that fit in one protocol line
-        while public and _size({"id": 0, "ok": True,
-                                "result": result}) > RESPONSE_BUDGET:
-            del public[:max(1, len(public) // 10)]
+        # keep the newest messages that fit in one protocol line, sizing
+        # each message once
+        total, keep = 0, 0
+        for message in reversed(public):
+            total += _size(message) + 1
+            if total > RESPONSE_BUDGET:
+                break
+            keep += 1
+        if keep < len(public):
+            result["messages"] = public[len(public) - keep:]
             result["has_more"] = True
             result["trimmed"] = True
         return result
@@ -645,7 +693,7 @@ class Daemon:
             status = result.get("status") if isinstance(result, dict) else None
             raise ProtocolError("upstream", f"Muse refused the message (HTTP {status})")
         message_id = _sent_message_id(result)
-        if self.index.touch(chat["id"]):
+        if await asyncio.to_thread(self.index.touch, chat["id"]):
             await self._changed(self.index.get(chat["id"]))
         watch = self.watches.get(chat["id"])
         if watch is not None and watch.state in ("not_started", "error"):

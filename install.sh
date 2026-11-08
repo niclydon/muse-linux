@@ -156,6 +156,12 @@ else
 fi
 
 # -- install --------------------------------------------------------------
+# the unit bind-mounts the pairing store; it must exist before the
+# daemon starts so a pairing made later shows up without a restart
+if [[ ! -d /var/lib/musegadget ]]; then
+  run install -d -m 0700 -o root -g root /var/lib/musegadget
+fi
+
 say "group $GROUP"
 if ! getent group "$GROUP" >/dev/null; then
   run groupadd --system "$GROUP"

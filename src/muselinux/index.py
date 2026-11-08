@@ -18,6 +18,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -52,6 +53,8 @@ class ChatIndex:
         self.path = path or default_index_path()
         self._data: dict = {"chats": []}
         self._stamp: tuple | None = None
+        # the daemon calls in from its event loop and from worker threads
+        self._lock = threading.RLock()
         self._refresh()
 
     # -- storage -----------------------------------------------------
@@ -91,18 +94,19 @@ class ChatIndex:
         return (st.st_mtime_ns, st.st_size, st.st_ino)
 
     def _refresh(self) -> None:
-        stamp = self._disk_stamp()
-        if stamp is not None and stamp == self._stamp:
-            return
-        self._data = self._seed(self._read_disk())
-        self._stamp = stamp
+        with self._lock:
+            stamp = self._disk_stamp()
+            if stamp is not None and stamp == self._stamp:
+                return
+            self._data = self._seed(self._read_disk())
+            self._stamp = stamp
 
     @contextmanager
     def _mutate(self):
         """Lock, reload, yield the data for change, then save."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = self.path.with_name(self.path.name + ".lock")
-        with open(lock_path, "a") as lock:
+        with self._lock, open(lock_path, "a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
                 self._data = self._seed(self._read_disk(strict=True))
@@ -124,13 +128,15 @@ class ChatIndex:
 
     # -- queries -----------------------------------------------------
     def list(self) -> list[dict]:
-        self._refresh()
-        return [dict(c) for c in self._data["chats"]]
+        with self._lock:
+            self._refresh()
+            return [dict(c) for c in self._data["chats"]]
 
     def get(self, chat_id: str) -> dict | None:
-        self._refresh()
-        chat = self._find(self._data, chat_id)
-        return dict(chat) if chat is not None else None
+        with self._lock:
+            self._refresh()
+            chat = self._find(self._data, chat_id)
+            return dict(chat) if chat is not None else None
 
     # -- changes -----------------------------------------------------
     def create(self, label: str) -> dict:
@@ -175,8 +181,7 @@ class ChatIndex:
         """Record activity on a chat, for newest-first ordering.
         Returns True when the stored time moved forward."""
         at_ms = int(at_ms or time.time() * 1000)
-        self._refresh()
-        current = self._find(self._data, chat_id)
+        current = self.get(chat_id)
         if current is None or (current.get("last_activity_ms") or 0) >= at_ms:
             return False
         with self._mutate() as data:

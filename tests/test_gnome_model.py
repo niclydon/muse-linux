@@ -147,3 +147,21 @@ def test_markdown_output_is_valid_pango():
             if block[0] == "markup":
                 # Gtk.Label handles <a>; Pango itself does not know it
                 Pango.parse_markup(markdown.without_links(block[1]), -1, "\0")
+
+
+def test_an_unconfirmed_send_that_landed_is_not_shown_twice():
+    state = ChatState({"id": "main", "label": "Main chat"})
+    state.load_history(history())
+    sent = state.add_pending("did this land")
+    state.fail(sent, "Not confirmed", uncertain=True)
+    state.apply({"event": "user_message", "message_id": "u9",
+                 "text": "did this land"})
+    assert [m.text for m in state.messages] == ["did this land"]
+    assert sent.message_id == "u9" and not sent.error
+
+    other = state.add_pending("and this one")
+    state.fail(other, "Not confirmed", uncertain=True)
+    state.load_history(history(("user", "did this land", "u9"),
+                               ("user", "and this one", "u10")))
+    assert [m.text for m in state.messages] == ["did this land",
+                                                "and this one"]
