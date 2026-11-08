@@ -18,9 +18,19 @@ from pathlib import Path
 MAIN_ID = "main"
 
 
+SERVICE_HOME = Path("/var/lib/muse-linux")
+
+
 def default_index_path() -> Path:
     base = os.environ.get("MUSE_LINUX_HOME")
-    root = Path(base) if base else Path.home() / ".local" / "share" / "muse-linux"
+    if base:
+        return Path(base) / "chats.json"
+    # Prefer the service home when an installed service index exists,
+    # so terminal and service clients share one chat list by default.
+    service_index = SERVICE_HOME / "chats.json"
+    if service_index.exists():
+        return service_index
+    root = Path.home() / ".local" / "share" / "muse-linux"
     return root / "chats.json"
 
 

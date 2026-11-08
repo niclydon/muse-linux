@@ -42,7 +42,8 @@ async def ask(session, session_id: str | None, text: str,
               timeout_s: float = 180,
               on_status: Callable[[str], None] | None = None,
               on_reply: Callable[[str], None] | None = None,
-              on_approvals: Callable[[dict], None] | None = None
+              on_approvals: Callable[[dict], None] | None = None,
+              sender: Callable | None = None
               ) -> AskResult:
     """Run one turn on an open session.
 
@@ -51,6 +52,9 @@ async def ask(session, session_id: str | None, text: str,
     ``on_reply`` receives the reply text snapshot whenever it grows;
     ``on_approvals`` receives each post-send approvals snapshot
     payload, for front ends that render approval requests.
+    ``sender`` overrides the send step: an async callable taking the
+    session and returning the send result dict, used for voice
+    messages (send_voice) instead of send_chat.
     """
     from musegadget.link_client import acknowledgement
     from musegadget.muse_turn import MuseTurn
@@ -112,7 +116,9 @@ async def ask(session, session_id: str | None, text: str,
                 break
             await asyncio.sleep(0.05)
         send_issued = True
-        if session_id:
+        if sender is not None:
+            send_result = await sender(session) or {}
+        elif session_id:
             send_result = await session.send_chat(text, session_id=session_id)
         else:
             send_result = await session.send_chat(text)

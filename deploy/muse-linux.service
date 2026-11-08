@@ -1,0 +1,15 @@
+[Unit]
+Description=Muse for Linux client service (API + web GUI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment=MUSE_LINUX_HOME=/var/lib/muse-linux
+ExecStart=/services/muse-linux/venv/bin/muse-linux serve --port 8770 --gui-dir /services/muse-linux/gui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

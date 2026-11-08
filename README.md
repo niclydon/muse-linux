@@ -94,8 +94,16 @@ web app served by the backend itself, or as a Tauri desktop app
   format; shim users get clean streaming chat without them. The
   `muselinux` library exposes them natively for front ends that
   integrate directly.
-- **Voice** (voice notes out, TTS and realtime calls) is in the SDK
-  and on the roadmap; it is not wired into the CLI yet.
+- **Voice, partly.** Voice notes out and spoken replies (TTS) are
+  wired: `muse-linux voice-note file.wav`, `muse-linux say
+  <message-id> --out reply.mp3`, a mic button and listen buttons in
+  the web GUI. Realtime calls run through the SDK's own
+  `musegadget voice-call` program (see `muse-linux voice-call`);
+  they need a machine with a microphone and speakers.
+- **Approvals are read-only.** Pending approvals are presented
+  readably in both GUIs, but every decision route is refused by
+  the credential's scopes (measured; see docs/PROBE-RESULTS.md),
+  so approvals are decided in the Muse app.
 
 ## Development
 

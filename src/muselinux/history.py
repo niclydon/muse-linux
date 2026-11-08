@@ -12,6 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+MAX_HISTORY_LIMIT = 200  # measured server ceiling, 2026-11-08
+
+
 @dataclass
 class Message:
     role: str            # "user" or "assistant"
@@ -20,6 +23,7 @@ class Message:
     occurred_at_ms: int | None = None
     chat_id: str | None = None
     chat_kind: str | None = None
+    reaction: str | None = None
 
 
 def _event_text(event: dict) -> str:
@@ -53,6 +57,7 @@ def parse_history(result: dict) -> tuple[list[Message], bool]:
         else:
             continue  # delta.presentation and anything else: not a message
         context = event.get("chat_context") or {}
+        reaction = event.get("reaction_emoji")
         messages.append(Message(
             role=role,
             text=_event_text(event),
@@ -60,12 +65,14 @@ def parse_history(result: dict) -> tuple[list[Message], bool]:
             occurred_at_ms=event.get("occurred_at_ms"),
             chat_id=context.get("chat_id"),
             chat_kind=context.get("chat_kind"),
+            reaction=reaction if isinstance(reaction, str) and reaction
+            else None,
         ))
     return messages, bool(body.get("has_more"))
 
 
 def history_path(session_id: str | None, limit: int) -> str:
-    limit = max(1, min(int(limit), 50))
+    limit = max(1, min(int(limit), MAX_HISTORY_LIMIT))
     path = f"/chat/history?limit={limit}"
     if session_id:
         path += f"&session_id={session_id}"

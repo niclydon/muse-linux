@@ -20,6 +20,13 @@ export interface HistoryMessage {
   text: string;
   message_id: string | null;
   occurred_at_ms: number | null;
+  reaction: string | null;
+}
+
+export interface PendingApproval {
+  id: string | null;
+  title: string;
+  detail: string;
 }
 
 export interface StatusInfo {
@@ -33,7 +40,7 @@ export interface StatusInfo {
 export type StreamEvent =
   | { type: "status"; code: string }
   | { type: "reply"; text: string }
-  | { type: "approvals"; data: Record<string, unknown> }
+  | { type: "approvals"; pending: PendingApproval[] }
   | {
       type: "done";
       completion: string;
@@ -71,29 +78,33 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ label }),
     }),
-  history: (id: string, limit = 40) =>
+  history: (id: string, limit = 50) =>
     json<{ messages: HistoryMessage[]; has_more: boolean }>(
       `${API_BASE}/api/chats/${encodeURIComponent(id)}/history?limit=${limit}`,
     ),
 };
 
-/** POST a message and stream the turn's events (SSE over fetch). */
-export async function* streamMessage(
+/** Fetch the spoken version of one assistant message (MP3). */
+export async function fetchTts(
   chatId: string,
-  text: string,
-  signal: AbortSignal,
-): AsyncGenerator<StreamEvent> {
+  messageId: string,
+): Promise<Blob> {
   const response = await fetch(
-    `${API_BASE}/api/chats/${encodeURIComponent(chatId)}/messages`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-      signal,
-    },
+    `${API_BASE}/api/chats/${encodeURIComponent(chatId)}/tts/` +
+      encodeURIComponent(messageId),
   );
+  if (!response.ok) {
+    throw new Error(`tts: HTTP ${response.status}`);
+  }
+  return response.blob();
+}
+
+/** Read an SSE-over-fetch response body as a stream of turn events. */
+async function* parseEventStream(
+  response: Response,
+): AsyncGenerator<StreamEvent> {
   if (!response.ok || !response.body) {
-    throw new Error(`messages: HTTP ${response.status}`);
+    throw new Error(`stream: HTTP ${response.status}`);
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -117,4 +128,40 @@ export async function* streamMessage(
       cut = buffer.indexOf("\n\n");
     }
   }
+}
+
+/** POST a message and stream the turn's events (SSE over fetch). */
+export async function* streamMessage(
+  chatId: string,
+  text: string,
+  signal: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  const response = await fetch(
+    `${API_BASE}/api/chats/${encodeURIComponent(chatId)}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal,
+    },
+  );
+  yield* parseEventStream(response);
+}
+
+/** POST a voice message (WAV bytes) and stream the turn's events. */
+export async function* streamVoice(
+  chatId: string,
+  wav: ArrayBuffer,
+  signal: AbortSignal,
+): AsyncGenerator<StreamEvent> {
+  const response = await fetch(
+    `${API_BASE}/api/chats/${encodeURIComponent(chatId)}/voice`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "audio/wav" },
+      body: wav,
+      signal,
+    },
+  );
+  yield* parseEventStream(response);
 }

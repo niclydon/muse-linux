@@ -8,7 +8,7 @@ from fakes import FakeSession
 
 
 def test_history_path_clamps_and_scopes():
-    assert history_path(None, 500) == "/chat/history?limit=50"
+    assert history_path(None, 500) == "/chat/history?limit=200"
     assert history_path("abc", 5) == "/chat/history?limit=5&session_id=abc"
 
 

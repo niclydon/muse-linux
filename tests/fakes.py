@@ -17,11 +17,14 @@ def event(name, message_id=None, *, parent=None, session="chat-1", **payload):
 class FakeSession:
     """Bundle first, then (after send) one streamed reply and task end."""
 
-    def __init__(self):
+    def __init__(self, with_approvals=False):
         self.chat_subscribed = asyncio.Event()
         self.sent: list[tuple[str, str | None]] = []
+        self.voice_sent: list[tuple[bytes, str | None]] = []
+        self.tts_requests: list[str] = []
         self._sent = asyncio.Event()
         self.requests: list[tuple[str, str]] = []
+        self.with_approvals = with_approvals
 
     async def subscribe_chat(self, session_id=None):
         self.chat_subscribed.set()
@@ -30,6 +33,10 @@ class FakeSession:
         yield event("approvals.snapshot")
         await self._sent.wait()
         yield event("agent.status", parent="u1", activity_code="working")
+        if self.with_approvals:
+            yield event("approvals.snapshot", pending_approvals=[
+                {"id": "ap-1", "title": "Run a shell command",
+                 "detail": "ls -la /tmp"}])
         yield event("delta.text_append", "r1", parent="u1", text="Hel")
         yield event("delta.text_append", "r1", parent="u1", text="lo")
         yield event("delta.message_done", "r1", parent="u1",
@@ -43,6 +50,18 @@ class FakeSession:
         return {"ok": True, "status": 200,
                 "response": {"result": {"message_id": "u1",
                                         "session_id": session_id or "chat-1"}}}
+
+    async def send_voice(self, wav_bytes, session_id=None, **kwargs):
+        self.voice_sent.append((wav_bytes, session_id))
+        self._sent.set()
+        return {"ok": True, "status": 200,
+                "response": {"result": {"message_id": "u1",
+                                        "session_id": session_id or "chat-1"}}}
+
+    async def stream_tts(self, message_id):
+        self.tts_requests.append(message_id)
+        yield b"fake-mp3-chunk-1;"
+        yield b"fake-mp3-chunk-2"
 
     async def request(self, method, path, body=b"", *, headers=None,
                       timeout=None):
@@ -60,6 +79,7 @@ class FakeSession:
                      "message_id": "x", "display_text": "ignored"},
                     {"event_name": "message.assistant", "message_id": "r0",
                      "display_text": "hello", "occurred_at_ms": 2,
+                     "reaction_emoji": "👍",
                      "chat_context": {"chat_id": "chat-1",
                                       "chat_kind": "side"}},
                 ]}}}

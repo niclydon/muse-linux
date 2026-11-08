@@ -12,8 +12,12 @@ import {
   api,
   type ChatInfo,
   type HistoryMessage,
+  type PendingApproval,
   type StatusInfo,
 } from "./api";
+
+const HISTORY_START_LIMIT = 50;
+const HISTORY_MAX_LIMIT = 200;
 
 function useTheme() {
   const [dark, setDark] = useState(
@@ -36,14 +40,24 @@ export default function App() {
   const [status, setStatus] = useState<StatusInfo | null>(null);
   const [history, setHistory] = useState<HistoryMessage[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [limitState, setLimitState] = useState<{
+    chatId: string;
+    limit: number;
+  }>({ chatId: "main", limit: HISTORY_START_LIMIT });
+  const [filter, setFilter] = useState("");
   const [working, setWorking] = useState<string | null>(null);
-  const [approvals, setApprovals] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [approvals, setApprovals] = useState<PendingApproval[] | null>(
+    null,
+  );
   const [showAdd, setShowAdd] = useState(false);
   const [addId, setAddId] = useState("");
   const [addLabel, setAddLabel] = useState("");
+
+  const historyLimit =
+    limitState.chatId === selected
+      ? limitState.limit
+      : HISTORY_START_LIMIT;
 
   const refreshChats = useCallback(async () => {
     try {
@@ -66,11 +80,15 @@ export default function App() {
     let live = true;
     setHistory(null);
     setHistoryError(null);
+    setHasMore(false);
     setApprovals(null);
     api
-      .history(selected)
+      .history(selected, historyLimit)
       .then((data) => {
-        if (live) setHistory(data.messages);
+        if (live) {
+          setHistory(data.messages);
+          setHasMore(data.has_more);
+        }
       })
       .catch((err) => {
         if (live) {
@@ -81,18 +99,38 @@ export default function App() {
     return () => {
       live = false;
     };
-  }, [selected]);
+  }, [selected, historyLimit]);
 
   const onWorkingStatus = useCallback(
     (code: string | null) => setWorking(code),
     [],
   );
   const onApprovals = useCallback(
-    (data: Record<string, unknown> | null) => {
-      // Only surface snapshots that actually carry content.
-      if (data && Object.keys(data).length > 0) setApprovals(data);
+    (pending: PendingApproval[] | null) => {
+      // Only surface snapshots that actually carry pending approvals.
+      if (pending && pending.length > 0) setApprovals(pending);
     },
     [],
+  );
+
+  const canLoadOlder =
+    history !== null &&
+    history.length >= historyLimit &&
+    historyLimit < HISTORY_MAX_LIMIT &&
+    hasMore;
+  const loadOlder = useCallback(() => {
+    setLimitState((prev) => ({
+      chatId: selected,
+      limit: Math.min(
+        HISTORY_MAX_LIMIT,
+        (prev.chatId === selected ? prev.limit : HISTORY_START_LIMIT) *
+          2,
+      ),
+    }));
+  }, [selected]);
+
+  const visibleChats = chats.filter((chat) =>
+    chat.label.toLowerCase().includes(filter.trim().toLowerCase()),
   );
 
   async function newChat() {
@@ -182,8 +220,22 @@ export default function App() {
             </div>
           )}
         </div>
+        <div className="px-3 pb-2">
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter chats"
+            aria-label="Filter chats"
+            className="w-full rounded-lg border border-zinc-300 bg-transparent px-2.5 py-1.5 text-[13px] outline-none focus:border-indigo-500 dark:border-zinc-700"
+          />
+        </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
-          {chats.map((chat) => (
+          {visibleChats.length === 0 && (
+            <p className="px-3 py-2 text-[13px] text-zinc-500 dark:text-zinc-400">
+              No chats match the filter.
+            </p>
+          )}
+          {visibleChats.map((chat) => (
             <div
               key={chat.id}
               className={`group flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition ${
@@ -263,9 +315,22 @@ export default function App() {
           <div className="mx-4 mt-3 flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100">
             <ShieldAlert className="mt-0.5 shrink-0" size={18} />
             <div className="min-w-0">
-              <p className="font-medium">Approval state reported</p>
-              <p className="mt-0.5 break-words text-[13px] opacity-80">
-                {JSON.stringify(approvals).slice(0, 400)}
+              <p className="font-medium">Approvals waiting in Muse</p>
+              <ul className="mt-1 space-y-1">
+                {approvals.map((approval, i) => (
+                  <li key={approval.id ?? i} className="text-[13px]">
+                    <span className="font-medium">{approval.title}</span>
+                    {approval.detail && (
+                      <span className="opacity-80">
+                        {" "}
+                        — {approval.detail}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[12px] opacity-80">
+                Approvals are decided in the Muse app.
               </p>
               <button
                 className="mt-1 text-[12px] font-medium underline"
@@ -291,11 +356,13 @@ export default function App() {
                 </p>
               )}
               <ChatPane
-                key={selected}
+                key={`${selected}:${historyLimit}`}
                 chatId={selected}
                 initialMessages={history}
                 onWorkingStatus={onWorkingStatus}
                 onApprovals={onApprovals}
+                canLoadOlder={canLoadOlder}
+                onLoadOlder={loadOlder}
               />
             </>
           )}

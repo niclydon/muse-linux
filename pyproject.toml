@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "muse-linux"
-version = "0.1.0"
+version = "0.2.0"
 description = "An unofficial Linux client for Meta Muse, built on the Muse Gadget SDK (Link protocol)"
 readme = "README.md"
 license = "Apache-2.0"
@@ -15,8 +15,8 @@ dependencies = []
 # The Link transport itself comes from Meta's Muse Gadget SDK for Linux.
 # Install it from the SDK repository (see README quickstart).
 link = ["musegadget"]
-tui = ["textual>=0.80"]
-test = ["pytest", "pytest-asyncio", "textual>=0.80"]
+tui = ["textual>=0.80,<9"]
+test = ["pytest", "pytest-asyncio", "textual>=0.80,<9"]
 
 [project.scripts]
 muse-linux = "muselinux.cli:main"

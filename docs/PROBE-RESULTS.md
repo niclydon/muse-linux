@@ -33,3 +33,21 @@ and status only, never message content. Re-run them any time with
 3. Anything beyond chat (files, goals, app surfaces) is outside this
    credential's scopes and would need a differently-scoped credential
    or server-side changes by Meta.
+
+## Addendum, 2026-11-08 (0.2.0 build)
+
+History paging, probed against the main chat: offset, skip,
+before, before_message_id and cursor parameters are all ignored;
+each variant returned the identical newest set. The limit
+parameter is honored up to a server ceiling of 200 events
+(limit=200 returned 200; 500 and 1000 also returned 200), so the
+client ceiling is 200 and "load older" is a re-fetch with a
+larger limit. Beyond 200 events, has_more stays true with no
+supported way to page further.
+
+Approval decisions, probed against a side chat: GET
+/chat/approvals and POST /chat/approve, /chat/approvals/decide,
+/chat/approval and /approvals/decide all returned the identical
+403 scope refusal. This credential can observe pending approvals
+(approvals.snapshot) but cannot decide them; clients must present
+pending approvals read-only.

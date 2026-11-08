@@ -112,6 +112,60 @@ async def _repl(args) -> int:
             print("[no reply received]", file=sys.stderr)
 
 
+async def _voice_note(args) -> int:
+    from pathlib import Path
+
+    from .ask import ask
+    from .index import ChatIndex
+    from .link import open_session
+    from .voice import send_voice_message
+
+    index = ChatIndex()
+    chat = _resolve(index, args.chat)
+    wav = Path(args.wav).read_bytes()
+    session_id = chat.get("session_id")
+
+    async def _send(session):
+        return await send_voice_message(session, session_id, wav)
+
+    async with open_session() as session:
+        result = await ask(session, session_id, "", sender=_send,
+                           on_status=lambda code: print(
+                               f"[status] {code}", file=sys.stderr))
+    print(result.reply_text)
+    return 0 if result.ok else 1
+
+
+async def _say(args) -> int:
+    from pathlib import Path
+
+    from .link import open_session
+    from .voice import fetch_tts
+
+    async with open_session() as session:
+        data = await fetch_tts(session, args.message_id)
+    if not data:
+        print("no audio returned for that message")
+        return 1
+    Path(args.out).write_bytes(data)
+    print(f"wrote {args.out} ({len(data)} bytes)")
+    return 0
+
+
+async def _leased_vm_id() -> str | None:
+    from .link import fetch_vms, find_state_dir, load_pairing
+
+    found = find_state_dir()
+    if found is None:
+        return None
+    pairing = load_pairing(found)
+    vms, _status = await fetch_vms(pairing)
+    if vms:
+        vm = vms[0]
+        return vm.get("vm_id") or vm.get("id")
+    return None
+
+
 async def _probe(args) -> int:
     from .link import open_session
     from .probe import run_probes
@@ -174,6 +228,21 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--gui-dir",
                        help="also serve the built GUI from this directory")
 
+    voice_note = sub.add_parser(
+        "voice-note", help="send a WAV file as a voice message")
+    voice_note.add_argument("wav")
+    voice_note.add_argument("--chat", default="main")
+
+    say = sub.add_parser(
+        "say", help="download a spoken reply (TTS MP3) for a message")
+    say.add_argument("message_id")
+    say.add_argument("--out", required=True)
+
+    sub.add_parser(
+        "voice-call",
+        help="start a realtime voice call via the SDK (needs audio "
+             "devices and the exact VM id; prints the command)")
+
     args = parser.parse_args(argv)
 
     if args.command == "doctor":
@@ -216,6 +285,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from .server import serve
         serve(args.host, args.port, gui_dir=args.gui_dir)
+        return 0
+    if args.command == "voice-note":
+        return asyncio.run(_voice_note(args))
+    if args.command == "say":
+        return asyncio.run(_say(args))
+    if args.command == "voice-call":
+        vm = asyncio.run(_leased_vm_id())
+        print("Realtime voice uses the SDK's own program (PCM16LE "
+              "mono 24 kHz, one call per VM, audio devices required):")
+        print(f"  musegadget voice-call --vm-id {vm or '<leased VM id>'}")
+        print("On a headless server this connects with no audio "
+              "path; run it on a machine with a microphone and "
+              "speakers to hold a call.")
         return 0
     return 2
 

@@ -5,4 +5,4 @@ paired as a Muse gadget can also act as a client of its own Muse VM,
 using ephemeral sessions that never register as a device.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
