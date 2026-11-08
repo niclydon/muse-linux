@@ -15,7 +15,8 @@ dependencies = []
 # The Link transport itself comes from Meta's Muse Gadget SDK for Linux.
 # Install it from the SDK repository (see README quickstart).
 link = ["musegadget"]
-test = ["pytest", "pytest-asyncio"]
+tui = ["textual>=0.80"]
+test = ["pytest", "pytest-asyncio", "textual>=0.80"]
 
 [project.scripts]
 muse-linux = "muselinux.cli:main"

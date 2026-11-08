@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Full-screen terminal UI (`muse-linux tui`, Textual): Muse app
+  layout with a chat sidebar, streaming Markdown replies, working
+  status in the header, approvals surface, light/dark themes, and
+  keyboard actions (ctrl+n new chat, ctrl+t theme, ctrl+r reload,
+  ctrl+q quit). Verified live against a paired host, including a
+  real send through the UI.
 - Native GUI backend API (`muse-linux serve`): status, chats,
   history and an SSE message stream carrying working status, task
   state and approval snapshots; can also serve the built GUI.

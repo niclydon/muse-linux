@@ -160,6 +160,8 @@ def main(argv: list[str] | None = None) -> int:
     chat = sub.add_parser("chat", help="interactive terminal chat")
     chat.add_argument("--chat", default="main")
 
+    sub.add_parser("tui", help="full-screen terminal UI")
+
     sub.add_parser("probe", help="run the parity-ceiling probes")
 
     shim = sub.add_parser("shim", help="serve the OpenAI-compatible shim")
@@ -201,6 +203,10 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_ask_once(args))
     if args.command == "chat":
         return asyncio.run(_repl(args))
+    if args.command == "tui":
+        from .tui import run_tui
+        run_tui()
+        return 0
     if args.command == "probe":
         return asyncio.run(_probe(args))
     if args.command == "shim":

@@ -17,7 +17,10 @@ small Python library (`muselinux`) that a desktop GUI can be built on.
 
 - **Chat in the terminal** with your actual Muse: the main chat and
   side chats addressed by their real session ids, with streaming
-  replies and live working status.
+  replies and live working status. `muse-linux tui` gives a
+  full-screen terminal UI in the Muse app's layout (chat sidebar,
+  streaming Markdown replies, working status, light and dark themes);
+  `muse-linux chat` is the plain line-mode client.
 - **History**: read a chat's canonical transcript.
 - **Side chats**: create new ones, keep a local index of the chats you
   use, rename them locally.
