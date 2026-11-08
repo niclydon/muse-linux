@@ -10,8 +10,12 @@ local trust boundary at "local programs", not "any web page":
   proxy), which defeats DNS rebinding.
 - A request whose ``Origin`` is a page on any other host is refused.
   Pages served from loopback or an allowed host (the bundled web GUI),
-  the desktop shell's own origins and requests with no ``Origin`` at
-  all (curl, server-side front ends, the CLI) are allowed.
+  Tauri app origins and requests with no ``Origin`` at all (curl,
+  server-side front ends, the CLI) are allowed. A browser request with
+  no ``Origin`` that says it came from another site
+  (``Sec-Fetch-Site: cross-site`` or ``same-site``, as a page's plain
+  GET or an image tag sends) is refused too, unless it is the user
+  following a link (``Sec-Fetch-Mode: navigate``).
 - JSON endpoints require ``Content-Type: application/json``, so a
   cross-site form or ``text/plain`` fetch cannot reach them without a
   CORS preflight, which a foreign origin never passes.
@@ -23,13 +27,17 @@ import ipaddress
 from urllib.parse import urlsplit
 
 LOOPBACK_NAMES = {"localhost", "localhost.localdomain", "ip6-localhost"}
-# Origins of the bundled Tauri desktop shell (gui/src-tauri).
+# Origins Tauri gives an app's own pages (gui/src-tauri). Every Tauri
+# app on the machine shares them, not only the bundled shell.
 DESKTOP_ORIGINS = {"tauri://localhost", "http://tauri.localhost",
                    "https://tauri.localhost"}
 
 
 def _split_host(value: str) -> str:
     value = (value or "").strip().lower()
+    if "://" in value:                     # a URL was given as a host
+        value = value.split("://", 1)[1]
+    value = value.split("/", 1)[0]
     if value.startswith("["):              # [::1]:8770
         return value[1:value.find("]")] if "]" in value else value
     if value.count(":") == 1:              # host:port
@@ -89,9 +97,28 @@ def origin_allowed(origin: str | None, hosts: set[str]) -> bool:
     return is_loopback(parts.hostname) or parts.hostname in hosts
 
 
+FOREIGN_FETCH_SITES = {"cross-site", "same-site"}
+
+
+def refusal(headers, hosts: set[str]) -> str | None:
+    """Why a request must be refused, or None to let it through."""
+    if not host_allowed(headers.get("Host"), hosts):
+        return "host not allowed"
+    origin = headers.get("Origin")
+    if not origin_allowed(origin, hosts):
+        return "origin not allowed"
+    site = (headers.get("Sec-Fetch-Site") or "").strip().lower()
+    mode = (headers.get("Sec-Fetch-Mode") or "").strip().lower()
+    # following a link to the GUI is fine; a page's own fetch, image or
+    # script request is not
+    if not origin and site in FOREIGN_FETCH_SITES and mode != "navigate":
+        return "cross-site request not allowed"
+    return None
+
+
 def cors_origin(origin: str | None) -> str | None:
-    """The Access-Control-Allow-Origin value to send, if any: only the
-    desktop shell needs CORS; same-origin pages do not."""
+    """The Access-Control-Allow-Origin value to send, if any: only
+    Tauri app pages need CORS; same-origin pages do not."""
     if origin and origin.strip().lower() in DESKTOP_ORIGINS:
         return origin.strip()
     return None

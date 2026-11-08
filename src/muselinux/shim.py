@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import __version__
 from .index import ChatIndex
-from .localguard import allowed_hosts, host_allowed, is_json, origin_allowed
+from .localguard import allowed_hosts, is_json, refusal
 
 MODEL_PREFIX = "muse-chat-"
 
@@ -109,8 +109,7 @@ def make_handler(index: ChatIndex | None = None, bound_host="127.0.0.1",
         def _guard(self) -> bool:
             """Refuse requests a web page could have forged (see
             muselinux.localguard)."""
-            if not host_allowed(self.headers.get("Host"), hosts) or \
-                    not origin_allowed(self.headers.get("Origin"), hosts):
+            if refusal(self.headers, hosts):
                 self._json(403, {"error": {"message": "forbidden"}})
                 return False
             return True

@@ -45,8 +45,7 @@ from .approvals import parse_snapshot
 from .ask import ask
 from .history import fetch_history
 from .index import ChatIndex
-from .localguard import (allowed_hosts, cors_origin, host_allowed, is_json,
-                         origin_allowed)
+from .localguard import allowed_hosts, cors_origin, is_json, refusal
 from .voice import fetch_tts, send_voice_message
 
 DEFAULT_PORT = 8766
@@ -303,11 +302,9 @@ def make_handler(index: ChatIndex, gui_dir=None, bound_host="127.0.0.1",
 
         def _guard(self) -> bool:
             """Refuse requests a web page could have forged."""
-            if not host_allowed(self.headers.get("Host"), hosts):
-                self._json({"error": "host not allowed"}, 403)
-                return False
-            if not origin_allowed(self.headers.get("Origin"), hosts):
-                self._json({"error": "origin not allowed"}, 403)
+            why = refusal(self.headers, hosts)
+            if why:
+                self._json({"error": why}, 403)
                 return False
             return True
 

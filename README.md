@@ -125,6 +125,14 @@ Point any OpenAI-compatible front end at `http://127.0.0.1:8765/v1`
 with any placeholder API key. Models: `muse` is the main chat;
 `muse-chat-<session-id>` is a side chat.
 
+The shim and `muse-linux serve` answer only requests addressed to
+localhost, so web pages cannot use them. A front end that reaches them
+by another name, such as one in a Docker container using
+`host.docker.internal`, or a reverse proxy, needs that name allowed:
+`muse-linux shim --allow-host host.docker.internal` (or set
+`MUSE_LINUX_ALLOWED_HOSTS`, comma-separated). See
+[SECURITY.md](SECURITY.md).
+
 ## Desktop install (daemon + GNOME client)
 
 ```sh

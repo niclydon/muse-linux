@@ -60,14 +60,26 @@ if [[ ! -f /etc/default/muse-linux ]]; then
 import json, sys
 port = sys.argv[1]
 try:
-    web = json.load(sys.stdin).get("Web") or {}
+    status = json.load(sys.stdin)
 except Exception:
-    web = {}
-names = sorted({key.rsplit(":", 1)[0] for key, conf in web.items()
-                for handler in (conf.get("Handlers") or {}).values()
-                if str(handler.get("Proxy", "")).rstrip("/").endswith(":" + port)})
-print(",".join(names))
+    status = {}
+web = status.get("Web") or {}
+funnel = {key for key, on in (status.get("AllowFunnel") or {}).items() if on}
+names, public = set(), set()
+for key, conf in web.items():
+    for handler in (conf.get("Handlers") or {}).values():
+        if str(handler.get("Proxy", "")).rstrip("/").endswith(":" + port):
+            (public if key in funnel else names).add(key.rsplit(":", 1)[0])
+for name in sorted(public):
+    print("warning: " + name + " is on Tailscale Funnel (the public "
+          "internet); not allowing it", file=sys.stderr)
+print(",".join(sorted(names)))
 ' "$PORT" || true)"
+    if [[ -z "$HOSTS" ]]; then
+      echo "note: no tailscale serve entry proxies port $PORT; if you put the"
+      echo "      API behind one later, add its name to /etc/default/muse-linux"
+      echo "      as MUSE_LINUX_ALLOWED_HOSTS=<name>"
+    fi
   fi
   if [[ -n "$HOSTS" ]]; then
     printf 'MUSE_LINUX_ALLOWED_HOSTS=%s\n' "$HOSTS" > /etc/default/muse-linux
