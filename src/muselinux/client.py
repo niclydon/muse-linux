@@ -36,8 +36,11 @@ class DaemonError(Exception):
 
 
 class DaemonUnavailable(DaemonError):
-    def __init__(self, message: str):
+    def __init__(self, message: str, in_flight: bool = False):
         super().__init__("unavailable", message)
+        # the request had already gone out when the connection closed,
+        # so the daemon may have carried it out
+        self.in_flight = in_flight
 
 
 def describe_socket_problem(path: str, exc: BaseException) -> str:
@@ -179,8 +182,8 @@ class DaemonClient:
                 pending, self._pending = self._pending, {}
             for future in pending.values():
                 if not future.done():
-                    future.set_exception(
-                        DaemonUnavailable("the daemon connection closed"))
+                    future.set_exception(DaemonUnavailable(
+                        "the daemon connection closed", in_flight=True))
             try:
                 sock.close()
             except OSError:

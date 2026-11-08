@@ -87,6 +87,10 @@ async def test_socket_is_private_and_hello_reports_protocol(stack):
     client = make_client()
     hello = await call(client, "hello")
     assert hello["protocol"] == PROTOCOL_VERSION
+    for _ in range(200):  # the client's own hello runs in its thread
+        if client.daemon_info:
+            break
+        await asyncio.sleep(0.01)
     assert client.daemon_info["protocol"] == PROTOCOL_VERSION
 
 
@@ -327,3 +331,71 @@ def test_live_replies_drop_muse_app_widget_tokens():
                                           "display_text": "Here is the plan.\n\n"
                                           "[[hatch_widget:widget-1]]\n"}})
     assert events[0]["text"] == "Here is the plan."
+
+
+async def test_a_client_that_stops_reading_does_not_hold_up_others(stack):
+    """A client that never reads its socket is dropped once its queue
+    fills, and events keep reaching everyone else."""
+    import muselinux.daemon as daemon_mod
+
+    muse, daemon, index, sock, make_client = stack
+    reader = make_client()
+    await asyncio.to_thread(lambda: reader.watch("main").result(10))
+
+    stuck = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    stuck.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+    await asyncio.to_thread(stuck.connect, sock)
+    stuck.sendall(json.dumps({"id": 1, "cmd": "watch",
+                              "args": {"chat": "main"}}).encode() + b"\n")
+    for _ in range(200):
+        if len(daemon.clients) == 2:
+            break
+        await asyncio.sleep(0.01)
+    stuck_client = max(daemon.clients, key=lambda c: c.number)
+    try:
+        # flood the stuck client's queue directly, as many events would
+        big = {"event": "reply", "chat": "main", "text": "x" * 4000}
+        for _ in range(daemon_mod.OUTBOX_MAX + 10):
+            await stuck_client.send(big)
+        assert stuck_client.closed
+        await call(reader, "send", chat="main", text="still flowing")
+        await reader.events.wait_for(
+            lambda e: e.get("event") == "reply" and e.get("done"))
+    finally:
+        stuck.close()
+
+
+async def test_oversized_history_is_trimmed_to_fit(stack):
+    muse, daemon, index, sock, make_client = stack
+    for i in range(60):
+        muse.add_history(None, "assistant", f"{i} " + "y" * 30000)
+    client = make_client()
+    result = await call(client, "history", chat="main", limit=60)
+    assert result["trimmed"] and result["has_more"]
+    assert 0 < len(result["messages"]) < 60
+    # the newest message is kept
+    assert result["messages"][-1]["text"].startswith("59 ")
+
+
+async def test_index_is_touched_once_per_reply_not_per_delta(stack):
+    muse, daemon, index, sock, make_client = stack
+    client = make_client()
+    await asyncio.to_thread(lambda: client.watch("main").result(10))
+    await call(client, "send", chat="main", text="count my touches")
+    await client.events.wait_for(
+        lambda e: e.get("event") == "reply" and e.get("done"))
+    await asyncio.sleep(0.1)
+    changed = [e for e in client.events.of("chats.changed")
+               if e.get("chat", {}).get("id") == "main"]
+    deltas = [e for e in client.events.of("reply", "main") if not e["done"]]
+    assert len(deltas) > 1
+    # the send, the user message and the finished reply; never a delta
+    assert len(changed) <= 3 < len(deltas) + 3
+
+
+async def test_history_text_has_control_characters_removed(stack):
+    muse, daemon, index, sock, make_client = stack
+    muse.add_history(None, "assistant", "bell\x07 and\x1b[31m escape")
+    client = make_client()
+    result = await call(client, "history", chat="main")
+    assert result["messages"][-1]["text"] == "bell and[31m escape"

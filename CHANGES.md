@@ -9,7 +9,11 @@
   approvals, user messages, streaming replies), opened on demand and
   closed when idle. Serves desktop clients over a Unix socket that
   only root and the `muse-linux` group can use; runs without
-  capabilities under systemd sandboxing. Protocol in docs/PROTOCOL.md.
+  capabilities under systemd sandboxing that hides everything but the
+  pairing store and its own state. A client that stops reading is
+  disconnected instead of slowing the others, requests per client are
+  capped, and history that would not fit one protocol line is trimmed
+  to the newest messages. Protocol in docs/PROTOCOL.md.
 - GNOME client (`muse-linux-gnome`, "Muse for Linux"; GTK 4 +
   libadwaita 1.5+): chat list with filter and unread dots, chat view
   with streaming Markdown replies, working status and task state,

@@ -8,8 +8,10 @@ later). Run with ``muse-linux-gnome`` or ``muse-linux gnome``.
 
 from __future__ import annotations
 
+import html
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -21,7 +23,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from .. import __version__  # noqa: E402
-from ..client import DaemonClient, DaemonError  # noqa: E402
+from ..client import DaemonClient, DaemonError, DaemonUnavailable  # noqa: E402
 from ..protocol import MAX_TEXT_CHARS  # noqa: E402
 from . import markdown  # noqa: E402
 from .model import Change, ChatState, Message  # noqa: E402
@@ -94,6 +96,19 @@ def then(future, ok, err=None):
             return
         on_main(ok, result)
     future.add_done_callback(_done)
+
+
+def send_may_have_landed(exc: BaseException) -> bool:
+    """True when a failed send may still have reached Muse, so offering
+    Retry could post it twice."""
+    if isinstance(exc, DaemonUnavailable):
+        return exc.in_flight
+    return isinstance(exc, DaemonError) and exc.code == "upstream" and \
+        "may still" in exc.message
+
+
+def plain_text(markup: str) -> str:
+    return html.unescape(re.sub(r"<[^>]*>", "", markup))
 
 
 def error_text(exc: BaseException) -> str:
@@ -181,7 +196,7 @@ def markdown_widget(text: str, user: bool) -> Gtk.Widget:
             Pango.parse_markup(markdown.without_links(block[1]), -1, "\0")
             label.set_markup(block[1])
         except GLib.Error:
-            label.set_text(text)
+            label.set_text(plain_text(block[1]))
         box.append(label)
     return box
 
@@ -229,7 +244,7 @@ class MessageRow(Gtk.Box):
         if m.pending:
             bits.append("Sending…")
         elif m.error:
-            bits.append(f"Not sent: {m.error}")
+            bits.append(m.error if m.uncertain else f"Not sent: {m.error}")
         else:
             if m.occurred_at_ms:
                 bits.append(fmt_time(m.occurred_at_ms))
@@ -239,7 +254,8 @@ class MessageRow(Gtk.Box):
                 bits.append("Writing…")
         self.meta_label.set_text("  ·  ".join(bits))
         self.meta.set_visible(bool(bits))
-        self.retry.set_visible(bool(m.error) and self.on_retry is not None)
+        self.retry.set_visible(bool(m.error) and not m.uncertain
+                               and self.on_retry is not None)
         if m.error:
             self.bubble.add_css_class("message-failed")
         else:
@@ -742,6 +758,9 @@ class MainWindow(Adw.ApplicationWindow):
             if self.current in self.states:
                 self.reload_history()
         else:
+            for state in self.states.values():
+                state.watch_state = "pending"
+                state.status_code = state.status_text = None
             self.link_banner.set_title("Daemon not reachable")
             self.link_banner.set_revealed(True)
             self.show_problem("Can’t reach the muse-linux daemon",
@@ -905,7 +924,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.stack.set_visible_child_name("chat")
         self.content_page.set_title(state.chat["label"])
         self.chat_view.bind(state)
-        self.client.watch(chat_id)
+        self._watch(chat_id)
         if previous and previous != chat_id and \
                 previous not in self.background_watches:
             self.client.unwatch(previous)
@@ -954,10 +973,23 @@ class MainWindow(Adw.ApplicationWindow):
                 self.chat_view.apply_change(change)
 
         def err(exc):
-            change = state.fail(message, error_text(exc))
+            if send_may_have_landed(exc):
+                change = state.fail(
+                    message, "Not confirmed. Muse may still have received "
+                             "it, so check the chat before sending again.",
+                    uncertain=True)
+            else:
+                change = state.fail(message, error_text(exc))
             if state.chat_id == self.current:
                 self.chat_view.apply_change(change)
         then(self.client.call("send", chat=state.chat_id, text=text), ok, err)
+
+    def _watch(self, chat_id: str):
+        def err(exc):
+            if chat_id == self.current and not isinstance(exc, DaemonUnavailable):
+                self.toast(f"Live updates are off for this chat: "
+                           f"{error_text(exc)}")
+        then(self.client.watch(chat_id), lambda _result: None, err)
 
     def _keep_watching(self, chat_id: str):
         """Keep a chat you sent to watched, so its reply can notify you

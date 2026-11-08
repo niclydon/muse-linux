@@ -51,8 +51,12 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY=1 ;;
     --no-gnome) GNOME=0 ;;
     --no-start) START=0 ;;
-    --user) TARGET_USER="$2"; shift ;;
-    --sdk) SDK="$2"; shift ;;
+    --user|--sdk)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "$1 needs a value" >&2; exit 2
+      fi
+      if [[ $1 == --user ]]; then TARGET_USER="$2"; else SDK="$2"; fi
+      shift ;;
     -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -74,12 +78,19 @@ uninstall() {
   if command -v systemctl >/dev/null; then
     run systemctl disable --now muse-linuxd.service 2>/dev/null || true
   fi
-  run rm -f "$UNIT" "$BIN_DIR/muse-linux-gnome" "$BIN_DIR/muse-linuxctl" \
+  run rm -f "$UNIT" "$BIN_DIR/muse-linux-gnome" \
     "$APPS_DIR/$APP_ID.desktop" "$ICON_DIR/$APP_ID.svg"
   run rm -rf "$PREFIX"
   if command -v systemctl >/dev/null; then run systemctl daemon-reload; fi
+  if command -v update-desktop-database >/dev/null; then
+    run update-desktop-database -q "$APPS_DIR" || true
+  fi
+  if command -v gtk-update-icon-cache >/dev/null; then
+    run gtk-update-icon-cache -q /usr/local/share/icons/hicolor || true
+  fi
   if [[ $PURGE -eq 1 ]]; then
     say "removing the chat index in $STATE_DIR"
+    say "(the web service and terminal tools share it, if you use them)"
     run rm -rf "$STATE_DIR"
   else
     say "kept $STATE_DIR (the chat index); --purge removes it"
@@ -100,6 +111,11 @@ if ! "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
 fi
 if ! command -v systemctl >/dev/null; then
   echo "systemd is required for the daemon" >&2; exit 1
+fi
+if ! "$PYTHON" -c 'import ensurepip, venv' 2>/dev/null; then
+  echo "Python's venv module is missing:" >&2
+  echo "  Ubuntu/Debian: sudo apt install python3-venv" >&2
+  exit 1
 fi
 if [[ ! -e /var/lib/musegadget/pairing.json && $DRY -eq 0 ]]; then
   echo "note: no pairing found at /var/lib/musegadget yet; the daemon will"
@@ -133,6 +149,10 @@ if [[ -n "$SDK" ]]; then
   [[ -d "$SDK_SPEC" || $DRY -eq 1 ]] || { echo "no linux/ in $SDK" >&2; exit 1; }
 else
   SDK_SPEC="musegadget @ git+https://github.com/facebookincubator/muse-gadget-sdk#subdirectory=linux"
+  if ! command -v git >/dev/null; then
+    echo "git is needed to fetch the Muse Gadget SDK (or pass --sdk DIR)" >&2
+    exit 1
+  fi
 fi
 
 # -- install --------------------------------------------------------------
@@ -154,7 +174,12 @@ run mkdir -p "$PREFIX"
 run "$PYTHON" -m venv --system-site-packages "$VENV"
 run "$VENV/bin/pip" install -q --upgrade pip
 run "$VENV/bin/pip" install -q "$SDK_SPEC"
-run "$VENV/bin/pip" install -q --force-reinstall --no-deps "$REPO_DIR"
+# build from a copy so root never writes build files into the checkout
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+run cp -a "$REPO_DIR/." "$BUILD_DIR/src"
+run rm -rf "$BUILD_DIR/src/.git" "$BUILD_DIR/src/docs/media"
+run "$VENV/bin/pip" install -q --force-reinstall --no-deps "$BUILD_DIR/src"
 
 say "systemd unit"
 run install -m 0644 "$REPO_DIR/deploy/muse-linuxd.service" "$UNIT"
@@ -171,7 +196,7 @@ if [[ $GNOME -eq 1 ]]; then
     run update-desktop-database -q "$APPS_DIR" || true
   fi
   if command -v gtk-update-icon-cache >/dev/null; then
-    run gtk-update-icon-cache -q -t /usr/local/share/icons/hicolor || true
+    run gtk-update-icon-cache -q /usr/local/share/icons/hicolor || true
   fi
 fi
 

@@ -27,7 +27,15 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=read-only
+ProtectHome=yes
+# Root can read any root-owned file, so hide everything it does not
+# need: only the pairing store and its own state are visible in /var/lib.
+TemporaryFileSystem=/var/lib:ro
+BindReadOnlyPaths=-/var/lib/musegadget
+BindPaths=/var/lib/muse-linux
+InaccessiblePaths=-/etc/shadow -/etc/gshadow -/etc/ssh -/root
+ProtectProc=invisible
+ProcSubset=pid
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
@@ -42,6 +50,7 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
 SystemCallArchitectures=native
+SystemCallFilter=@system-service
 MemoryMax=512M
 
 [Install]

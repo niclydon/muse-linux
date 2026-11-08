@@ -28,6 +28,7 @@ class Message:
     done: bool = True
     pending: bool = False          # our send, not yet acknowledged
     error: str | None = None       # our send failed
+    uncertain: bool = False        # ...but Muse may have received it
     reaction: str | None = None
     live: bool = False             # arrived as a live event, not history
     key: int = field(default_factory=lambda: next(_keys))
@@ -132,9 +133,11 @@ class ChatState:
             message.message_id = message_id
         return Change(messages=[message])
 
-    def fail(self, message: Message, error: str) -> Change:
+    def fail(self, message: Message, error: str,
+             uncertain: bool = False) -> Change:
         message.pending = False
         message.error = error
+        message.uncertain = uncertain
         return Change(messages=[message])
 
     # -- live events -----------------------------------------------------

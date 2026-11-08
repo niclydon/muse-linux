@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import grp
+import json
 import logging
 import os
 import random
@@ -37,6 +38,10 @@ from .protocol import (
 log = logging.getLogger("muselinux.daemon")
 
 MAX_CLIENTS = 32
+MAX_INFLIGHT = 8          # concurrent requests per client
+OUTBOX_MAX = 2000         # queued outgoing messages per client
+WRITE_TIMEOUT_S = 10.0
+RESPONSE_BUDGET = MAX_LINE_BYTES - 64 * 1024
 MAX_WATCHES = 16
 IDLE_S = 300.0
 CONNECT_WAIT_S = 45.0
@@ -44,7 +49,13 @@ BACKOFF_MAX_S = 60.0
 
 
 class Client:
-    """One connected front end."""
+    """One connected front end.
+
+    Outgoing messages go through a bounded queue drained by the
+    client's own writer task, so one client that stops reading never
+    slows events for anyone else: when its queue overflows, or a write
+    stalls for WRITE_TIMEOUT_S, it is disconnected.
+    """
 
     _next = 0
 
@@ -53,12 +64,15 @@ class Client:
         self.number = Client._next
         self.reader = reader
         self.writer = writer
-        self.lock = asyncio.Lock()
         self.watching: set[str] = set()
         self.uid = _peer_uid(writer)
         self.closed = False
+        self.outbox: asyncio.Queue = asyncio.Queue(maxsize=OUTBOX_MAX)
+        self.slots = asyncio.Semaphore(MAX_INFLIGHT)
+        self.writer_task = asyncio.create_task(self._write_loop())
 
     async def send(self, obj: dict) -> None:
+        """Queue a message; never blocks."""
         if self.closed:
             return
         try:
@@ -67,12 +81,34 @@ class Client:
             log.warning("dropping an oversized message for client %d",
                         self.number)
             return
-        async with self.lock:
-            try:
+        try:
+            self.outbox.put_nowait(data)
+        except asyncio.QueueFull:
+            log.warning("client %d is not reading; disconnecting it",
+                        self.number)
+            self.abort()
+
+    async def _write_loop(self) -> None:
+        try:
+            while True:
+                data = await self.outbox.get()
                 self.writer.write(data)
-                await asyncio.wait_for(self.writer.drain(), 10)
-            except (ConnectionError, asyncio.TimeoutError, RuntimeError):
-                self.closed = True
+                await asyncio.wait_for(self.writer.drain(), WRITE_TIMEOUT_S)
+        except asyncio.CancelledError:
+            raise
+        except (ConnectionError, asyncio.TimeoutError, RuntimeError):
+            self.abort()
+
+    def abort(self) -> None:
+        self.closed = True
+        transport = getattr(self.writer, "transport", None)
+        if transport is not None:
+            transport.abort()
+
+
+def _size(obj: dict) -> int:
+    return len(json.dumps(obj, ensure_ascii=False,
+                          separators=(",", ":")).encode("utf-8"))
 
 
 def _peer_uid(writer) -> int | None:
@@ -196,6 +232,7 @@ class Daemon:
                     self.connected_since = time.time()
                     self._connected.set()
                     backoff = self.backoff_base_s
+                    self.last_error = None
                     await self._set_state("connected")
                     for watch in list(self.watches.values()):
                         self._start_watch(watch)
@@ -216,6 +253,9 @@ class Daemon:
                     if watch.task is not None:
                         watch.task.cancel()
                         watch.task = None
+                    if watch.state == "live":
+                        watch.state = "pending"
+                        await self._watch_broadcast(watch, watch.public())
             if not self._demand.is_set():
                 await self._set_state("idle")
                 continue
@@ -312,9 +352,13 @@ class Daemon:
         kind = event["event"]
         if kind in ("status", "task", "approvals"):
             watch.latest[kind] = event
-        if kind in ("reply", "user_message"):
-            if self.index.touch(watch.chat_id, event.get("occurred_at_ms")):
-                chat = self.index.get(watch.chat_id)
+        if kind == "user_message" or (kind == "reply" and event.get("done")):
+            # once per message, not per streamed delta; file I/O and the
+            # index lock stay off the event loop
+            moved = await asyncio.to_thread(
+                self.index.touch, watch.chat_id, event.get("occurred_at_ms"))
+            if moved:
+                chat = await asyncio.to_thread(self.index.get, watch.chat_id)
                 if chat:
                     await self._broadcast({"event": "chats.changed",
                                            "chat": chat_public(chat)})
@@ -381,9 +425,13 @@ class Daemon:
                     break
                 if not line.strip():
                     continue
+                # at most MAX_INFLIGHT requests per client at a time;
+                # reading waits until one finishes
+                await client.slots.acquire()
                 self._spawn(self._handle(client, line))
         finally:
             client.closed = True
+            client.writer_task.cancel()
             self.clients.discard(client)
             for chat_id in list(client.watching):
                 self._drop_watch(client, chat_id)
@@ -393,6 +441,22 @@ class Daemon:
             log.info("client %d left", client.number)
 
     async def _handle(self, client: Client, line: bytes) -> None:
+        try:
+            await self._handle_one(client, line)
+        finally:
+            client.slots.release()
+
+    @staticmethod
+    async def _reply(client: Client, response: dict) -> None:
+        try:
+            encode(response)
+        except ProtocolError:
+            response = {"id": response.get("id"), "ok": False, "error": {
+                "code": "too_large",
+                "message": "the answer is too large to send; ask for less"}}
+        await client.send(response)
+
+    async def _handle_one(self, client: Client, line: bytes) -> None:
         request_id = None
         try:
             request = decode(line)
@@ -405,7 +469,8 @@ class Daemon:
             if handler is None:
                 raise ProtocolError("unknown_command", f"unknown command {cmd!r}")
             result = await handler(client, args)
-            await client.send({"id": request_id, "ok": True, "result": result})
+            await self._reply(client, {"id": request_id, "ok": True,
+                                       "result": result})
         except ProtocolError as exc:
             await client.send({"id": request_id, "ok": False,
                                "error": {"code": exc.code,
@@ -531,9 +596,16 @@ class Daemon:
                 return {"chat": chat["id"], "messages": [],
                         "has_more": False, "not_started": True}
             raise ProtocolError("upstream", str(exc))
-        return {"chat": chat["id"],
-                "messages": [message_public(m) for m in messages],
-                "has_more": has_more, "limit": limit}
+        public = [message_public(m) for m in messages]
+        result = {"chat": chat["id"], "messages": public,
+                  "has_more": has_more, "limit": limit}
+        # keep the newest messages that fit in one protocol line
+        while public and _size({"id": 0, "ok": True,
+                                "result": result}) > RESPONSE_BUDGET:
+            del public[:max(1, len(public) // 10)]
+            result["has_more"] = True
+            result["trimmed"] = True
+        return result
 
     async def _cmd_watch(self, client, args):
         chat = self._chat(args)
@@ -564,7 +636,9 @@ class Daemon:
                 session.send_chat(text, session_id=session_id)
                 if session_id else session.send_chat(text), 75)
         except asyncio.TimeoutError:
-            raise ProtocolError("upstream", "send timed out")
+            raise ProtocolError(
+                "upstream", "the send timed out; Muse may still have "
+                            "received it, so check before sending again")
         except ConnectionError as exc:
             raise ProtocolError("upstream", str(exc))
         if not isinstance(result, dict) or not result.get("ok"):

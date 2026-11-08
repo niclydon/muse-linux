@@ -19,9 +19,15 @@ Requests may be pipelined; responses carry the request's `id` and can
 arrive in any order. A line that is not valid JSON gets a response with
 `"id": null`, and the connection stays open.
 
-Error codes: `bad_request`, `unknown_command`, `unknown_chat`,
-`not_connected` (no Muse session yet; retry), `upstream` (Muse
-answered with an error), `internal`.
+Error codes: `bad_request`, `too_large` (the answer would not fit in
+one line), `unknown_command`, `unknown_chat`, `not_connected` (no Muse
+session yet; retry), `upstream` (Muse answered with an error, or a
+send timed out and may still have been delivered), `internal`.
+
+A client may have at most 8 requests in flight; the daemon stops
+reading that client's socket until one finishes. A client that stops
+reading its socket long enough for 2000 messages to queue up, or for a
+write to stall 10 seconds, is disconnected.
 
 A `chat` argument is a chat's index id or its session id. The main chat
 is `main`.
@@ -37,7 +43,7 @@ is `main`.
 | `chats.add` | `session_id`, `label` | adds a chat known by id (for example copied from the phone app) |
 | `chats.rename` | `chat`, `label` | the renamed chat (labels are local) |
 | `chats.remove` | `chat` | removes a side chat from the local index only |
-| `history` | `chat`, `limit` (1 to 200, default 50) | `messages`, `has_more`, `limit`; `not_started: true` for a side chat with no first message |
+| `history` | `chat`, `limit` (1 to 200, default 50) | `messages`, `has_more`, `limit`; `not_started: true` for a side chat with no first message; `trimmed: true` when the oldest messages were left out to fit the line limit |
 | `watch` | `chat` | starts (or joins) the chat's live subscription; returns the watch `state` |
 | `unwatch` | `chat` | stops this client's watch |
 | `send` | `chat`, `text` (at most 32 KiB) | `message_id` of the sent message, once Muse accepts it. The reply arrives as events on a watched chat. |

@@ -45,6 +45,7 @@ COMMANDS = (
 
 ERROR_CODES = (
     "bad_request",      # malformed request or arguments
+    "too_large",        # the answer would not fit in one line
     "unknown_command",
     "unknown_chat",
     "not_connected",    # no Muse session right now; retry later
@@ -114,7 +115,7 @@ def clean_label(value, default: str) -> str:
 
 
 def chat_public(chat: dict) -> dict:
-    return {"id": chat["id"], "label": chat["label"],
+    return {"id": chat["id"], "label": clean_label(chat.get("label"), "Chat"),
             "session_id": chat.get("session_id"),
             "is_main": chat["id"] == "main",
             "created_at": chat.get("created_at"),
@@ -122,10 +123,10 @@ def chat_public(chat: dict) -> dict:
 
 
 def message_public(message) -> dict:
-    return {"role": message.role, "text": message.text,
+    return {"role": message.role, "text": clean_text(message.text),
             "message_id": message.message_id,
             "occurred_at_ms": message.occurred_at_ms,
-            "reaction": message.reaction}
+            "reaction": clean_text(message.reaction, 16) or None}
 
 
 def approvals_public(payload) -> list[dict]:
