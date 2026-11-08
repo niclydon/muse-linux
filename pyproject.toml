@@ -20,10 +20,15 @@ test = ["pytest", "pytest-asyncio", "textual>=0.80,<9"]
 
 [project.scripts]
 muse-linux = "muselinux.cli:main"
+muse-linux-gnome = "muselinux.gnome:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"muselinux.gnome" = ["data/icons/hicolor/*/apps/*.svg"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Muse for Linux
+GenericName=Muse client
+Comment=Chat with Muse from Linux (unofficial client)
+Exec=muse-linux-gnome
+Icon=io.github.niclydon.MuseLinux
+Terminal=false
+Type=Application
+Categories=Network;Chat;InstantMessaging;GTK;
+Keywords=Muse;chat;assistant;
+StartupNotify=true
+X-GNOME-UsesNotifications=true

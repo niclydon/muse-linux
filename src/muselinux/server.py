@@ -425,7 +425,8 @@ def make_handler(index: ChatIndex, gui_dir=None):
                 if chat is None:
                     return
                 label = str(self._body().get("label") or chat["label"])
-                self._json(chat_public(index.rename(chat["id"], label)))
+                index.rename(chat["id"], label)
+                self._json(chat_public(index.get(chat["id"])))
             elif len(parts) == 4 and parts[:2] == ["api", "chats"] \
                     and parts[3] == "messages":
                 chat = self._resolve(parts[2])
