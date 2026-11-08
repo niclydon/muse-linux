@@ -1229,6 +1229,7 @@ class MuseApp(Adw.Application):
         for action, accels in (("win.new-chat", ["<Ctrl>n"]),
                                ("win.add-chat", ["<Ctrl><Shift>n"]),
                                ("win.reload-history", ["<Ctrl>r", "F5"]),
+                               ("win.rename-chat", ["F2"]),
                                ("win.focus-search", ["<Ctrl>k", "<Ctrl>f"]),
                                ("win.focus-composer", ["<Ctrl>l"])):
             self.set_accels_for_action(action, accels)
@@ -1336,6 +1337,9 @@ SHORTCUTS_UI = """<?xml version="1.0" encoding="UTF-8"?>
             <child><object class="GtkShortcutsShortcut">
               <property name="title">Filter chats</property>
               <property name="accelerator">&lt;Ctrl&gt;k</property></object></child>
+            <child><object class="GtkShortcutsShortcut">
+              <property name="title">Rename the chat</property>
+              <property name="accelerator">F2</property></object></child>
             <child><object class="GtkShortcutsShortcut">
               <property name="title">Reload history</property>
               <property name="accelerator">&lt;Ctrl&gt;r</property></object></child>
