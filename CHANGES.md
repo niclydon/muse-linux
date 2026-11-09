@@ -1,6 +1,6 @@
 # Changes
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-11-08)
 
 - Daemon (`muse-linux daemon`, systemd unit `muse-linuxd`): the one
   process that reads the root-only pairing store. One long-lived

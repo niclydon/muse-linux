@@ -75,11 +75,11 @@ web GUI with its theme button):
   to end against the production service (see
   [docs/SMOKE-TEST.md](docs/SMOKE-TEST.md)).
 
-Current release: 0.2.1; 0.3.0 (unreleased) adds the desktop daemon
-and the GNOME app. The conversational core (chat, history,
-voice, approvals display) is complete within the capability map
-below; the limits in the next section are properties of the
-credential's scopes, not unfinished work.
+Current release: 0.3.0, which adds the desktop daemon and the
+GNOME app to the terminal, TUI and web clients. The conversational
+core (chat, history, voice, approvals display) is complete within
+the capability map below; the limits in the next section are
+properties of the credential's scopes, not unfinished work.
 
 ## How it works, in one paragraph
 
