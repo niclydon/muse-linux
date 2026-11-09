@@ -85,3 +85,30 @@ Step timings: [media/smoke-log.json](media/smoke-log.json).
    the agent's name; the status line now reads "Muse is working".
 2. Under load, Xvfb key repeat doubled letters typed by the test
    driver; the harness now turns key repeat off in its own session.
+
+## Installed-build verification, 2026-11-08 (0.3.0)
+
+After the 0.3.0 release, the daemon and the GNOME client were
+installed on the paired host with the repo's own install.sh
+(muse-linuxd active and enabled, answering version 0.3.0,
+protocol 1) and the smoke test above was re-run against the
+installed build, twice:
+
+- Against the production daemon and the host's real chat index:
+  PASS (82 s). Every step green: new side chat, both replies
+  streamed, rename, history reload, status dialog.
+- Against a scratch daemon from the installed package, with a
+  scratch chat index holding only invented labels, so the frames
+  are publishable: PASS (62 s). Recording:
+  [media/030/smoke-test.mp4](media/030/smoke-test.mp4); step
+  timings: [media/030/smoke-log.json](media/030/smoke-log.json).
+
+| Step | Screenshot |
+|---|---|
+| Open the client on a new side chat | [01](media/030/01-new-side-chat.png) |
+| First message, working state | [02](media/030/02-working-1.png) |
+| Second message, working state | [03](media/030/03-working-2.png) |
+| Both replies, Markdown rendered | [04](media/030/04-replies.png) |
+| Rename | [05](media/030/05-rename.png) |
+| History reloaded | [06](media/030/06-history-reloaded.png) |
+| Status dialog | [07](media/030/07-status.png) |
