@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@assistant-ui/react": "^0.15.36",
+    "@assistant-ui/react": "^0.15.37",
     "lucide-react": "^1.76.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
